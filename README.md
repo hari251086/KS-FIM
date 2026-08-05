@@ -25,7 +25,7 @@ both FIMs independently (using KSROP's own tested KS-transformation code
 as ground truth) and checks empirically whether that's actually what's
 going on.
 
-**Status: Phase 1-3 complete (45/45 tests).** The rank-deficiency
+**Status: Phase 1-4 complete (65/65 tests).** The rank-deficiency
 hypothesis is confirmed in every tested case, including a direct
 reproduction of the presentation's own 4 HEO case-study objects plus its
 GEO case, and the rank-corrected KS/Cartesian ratio behaves exactly as a
@@ -40,8 +40,14 @@ for one object. Phase 3 (issue #1) added the GEO case and an extreme
 1-station edge test — confirming `rank(F_ks)=rank(F_cartesian)` down to
 rank 1, and generalizing a caveat the source presentation only noted for
 near-degenerate station pairs (raw determinant → 0) into "true at any low
-station count." See `ALGORITHM.md` §8 for full findings, or issue #6 for
-the same writeup as the durable GitHub record of the finding.
+station count." Phase 4 (issue #2) derived and verified an exact closed
+form, `reduced_det_ks/det_cartesian = 64·r³`, and confirmed it holds to
+`~1e-9` relative precision at every point across 2 full orbital
+revolutions of a real case-study object — the ratio isn't just constant
+across station geometry, its exact value is predictable from the
+satellite's instantaneous radius alone. See `ALGORITHM.md` §8 for full
+findings, or issue #6 for the same writeup as the durable GitHub record of
+the finding.
 
 Independent of every other repo under `GitHub\` except KSROP (reused for
 the KS transformation, same pattern as KS-Pc/OREM).
@@ -58,9 +64,12 @@ KS-FIM/
 │   │                    rank-corrected reduced-determinant helpers
 │   └── timeconv.F       GMST (IAU-1982) + geodetic-to-ECI conversion
 ├── app/
-│   └── ksfim_case_study.F   reproduces the COSPAR presentation's own
-│                              4 HEO case-study objects (GMST-accurate)
-│                              plus its GEO case (issue #1)
+│   ├── ksfim_case_study.F   reproduces the COSPAR presentation's own
+│   │                          4 HEO case-study objects (GMST-accurate)
+│   │                          plus its GEO case (issue #1)
+│   └── ksfim_timeseries.F   multi-revolution closed-form-ratio check,
+│                              144 samples over 2 revs of object 35497
+│                              (issue #2)
 ├── test/
 │   ├── test_fim_cartesian.F            hand-computable sanity check
 │   ├── test_fim_ks_rank.F              core rank-deficiency test
@@ -69,8 +78,10 @@ KS-FIM/
 │   │                                    cross-check (issue #4)
 │   ├── test_timeconv.F                 GMST/geodetic-to-ECI checks
 │   │                                    (issue #3)
-│   └── test_fim_geo_edge.F             1-/2-station rank-tracking edge
-│                                        case (issue #1)
+│   ├── test_fim_geo_edge.F             1-/2-station rank-tracking edge
+│   │                                    case (issue #1)
+│   └── test_fim_ratio_formula.F        exact ratio=64*r^3 closed-form
+│                                        check (issue #2)
 ├── input/
 │   └── const_new.dat   physical constants (from KSROP)
 ├── fpm.toml
@@ -83,12 +94,15 @@ KS-FIM/
 fpm build --compiler ifx
 fpm test --compiler ifx
 fpm run ksfim_case_study --compiler ifx
+fpm run ksfim_timeseries --compiler ifx
 ```
 
-Expect 45/45 tests passing and, for each of the 4 HEO case-study objects
+Expect 65/65 tests passing and, for each of the 4 HEO case-study objects
 plus the GEO case, a printed comparison of the raw (presentation-style)
 and rank-corrected KS/Cartesian determinant ratios (both finite-difference
-and analytical).
+and analytical). `ksfim_timeseries` prints the max relative deviation from
+the exact closed-form ratio `64·r³` across 2 full revolutions (expect
+`~1e-9`).
 
 ## 4. Building / Setup
 
@@ -100,15 +114,18 @@ invoking `fpm`). Not yet verified with `gfortran`.
 
 ## 5. Running
 
-- `fpm run ksfim_case_study --compiler ifx` — the only executable; prints
-  the 4-object case-study comparison described in Quick Start.
+- `fpm run ksfim_case_study --compiler ifx` — prints the 4-object
+  case-study comparison described in Quick Start.
+- `fpm run ksfim_timeseries --compiler ifx` — prints and writes
+  `output/ksfim_timeseries_35497.csv`, the 144-sample multi-revolution
+  closed-form-ratio check described in Quick Start.
 - No CLI arguments or config files — all inputs (orbital elements, station
   coordinates) are hardcoded from the source presentation's own published
-  tables, directly in `app/ksfim_case_study.F`.
+  tables, directly in `app/ksfim_case_study.F` and `app/ksfim_timeseries.F`.
 
 ## 6. Testing
 
-`fpm test --compiler ifx` — **45/45 tests passing** as of the last run
+`fpm test --compiler ifx` — **65/65 tests passing** as of the last run
 documented here (2026-08-05):
 - `test_fim_cartesian`: 3/3 — Cartesian FIM builder matches a
   hand-computable orthogonal-line-of-sight geometry exactly.
@@ -124,6 +141,9 @@ documented here (2026-08-05):
   J2000.0 reference value to `1e-4` deg; `geodetic_to_eci` sanity checks.
 - `test_fim_geo_edge`: 4/4 (issue #1) — `rank(F_ks)=rank(F_cartesian)`
   holds down to the extreme edge case of a single observing station.
+- `test_fim_ratio_formula`: 20/20 (issue #2) — the exact closed form
+  `reduced_det_ks/det_cartesian = 64·r³` holds to `~1e-8`–`1e-10` relative
+  precision across 10 varied orbits/station geometries.
 
 ## 7. Inputs & Outputs
 
@@ -132,18 +152,18 @@ coordinates, per-station range-measurement σ — all hardcoded per case
 study, transcribed directly from the source presentation's own tables (not
 re-derived).
 
-**Outputs**: console output only (no file I/O) — per-object KS
-eigenvalues, empirical rank, and both raw and rank-corrected det(F)
-comparisons. `output/` exists per repo convention but is currently unused.
+**Outputs**: `ksfim_case_study` is console output only. `ksfim_timeseries`
+prints a summary and writes `output/ksfim_timeseries_35497.csv` (per-step
+`r`, rank, raw/reduced determinants, actual vs. predicted ratio, reldiff).
 
 ## 8. Known Issues / Limitations
 
 See `ALGORITHM.md` §9 for the full technical detail. Tracked as issues:
-#2 multi-revolution observability time series not yet implemented, #5
-open question on whether any correctly-normalized representation-dependent
-observability effect exists beyond what this repo falsified. #1 (GEO case)
-resolved in Phase 3; #3 (GMST-accurate station placement) and #4
-(analytical-gradient cross-check) resolved in Phase 2.
+#5 open question on whether any correctly-normalized representation-dependent
+observability effect exists beyond what this repo falsified — the only
+issue still open. #1 (GEO case) resolved in Phase 3; #2 (multi-revolution
+time series) resolved in Phase 4; #3 (GMST-accurate station placement) and
+#4 (analytical-gradient cross-check) resolved in Phase 2.
 
 ## 9. Version History
 
@@ -184,6 +204,18 @@ resolved in Phase 3; #3 (GMST-accurate station placement) and #4
   set to the station *altitude* values instead of the slide's published
   `σ=10 km` — a magnitude-only correction, confirmed not to affect any
   rank or ratio-based finding. 45/45 tests passing. See `ALGORITHM.md` §8.
+- **2026-08-05 (Phase 4)** — Issue #2 resolved, plus a bonus exact
+  derivation. Derived and verified the closed form
+  `reduced_det_ks/det_cartesian = 64·r³` (`test_fim_ratio_formula`, 20/20,
+  10 varied orbits/station geometries), then added
+  `app/ksfim_timeseries.F` tracking object 35497 across 2 full revolutions
+  (144 samples) — the closed-form prediction holds at every sampled point,
+  max relative deviation `1.474×10⁻⁹`. This subsumes and strengthens the
+  earlier "constant across station geometry" finding (Phase 1) into an
+  exact, position-only-dependent formula, and shows the observability
+  variation the source presentation's own plots show over a revolution is
+  fully explained by `r`'s own variation along the orbit. 65/65 tests
+  passing. See `ALGORITHM.md` §5, §8.
 
 ## 10. Dependencies / References
 

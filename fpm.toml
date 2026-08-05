@@ -17,6 +17,11 @@ name = "ksfim_case_study"
 source-dir = "app"
 main = "ksfim_case_study.F"
 
+[[executable]]
+name = "ksfim_timeseries"
+source-dir = "app"
+main = "ksfim_timeseries.F"
+
 [[test]]
 name = "test_fim_cartesian"
 source-dir = "test"
@@ -46,6 +51,11 @@ main = "test_timeconv.F"
 name = "test_fim_geo_edge"
 source-dir = "test"
 main = "test_fim_geo_edge.F"
+
+[[test]]
+name = "test_fim_ratio_formula"
+source-dir = "test"
+main = "test_fim_ratio_formula.F"
 
 [dependencies]
 ksrop = { git = "https://github.com/hari251086/KSROP", tag = "v2.2.0" }

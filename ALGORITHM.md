@@ -114,6 +114,27 @@ be a constant depending only on the satellite's position (via `|u|²=r`),
 independent of which stations are used or how many — **not** a genuine
 improvement in how well the position is determined.
 
+**Exact closed form (Phase 4, issue #2)**: the scale factor above isn't
+just constant — it has an exact, derivable value. `L(u)` being
+`|u|`-uniformly-scaled orthogonal means its 3-row physical submatrix
+`L₃(u)` satisfies `L₃(u)L₃(u)ᵀ = |u|² I₃`, i.e. all 3 singular values of
+`L₃(u)` equal `|u|` exactly. Since `F_ks = Jᵀ F_cartesian J` with
+`J = ∂r/∂u = 2·L₃(u)` (the `dr=2L(u)du` identity from issue #4's
+analytical gradient), `F_ks`'s nonzero eigenvalues equal
+`4|u|² · (eigenvalues of F_cartesian)` exactly. Combined with the KS
+regularizing identity `|u|² = r`:
+
+```
+reduced_det_ks / det_cartesian = (4·|u|²)³ = 64·r³
+```
+
+exactly — independent of station geometry, count, or σ, a single number
+determined entirely by the satellite's instantaneous distance from the
+primary. Verified to `~1e-8`–`1e-10` relative precision across 10 varied
+orbits/station geometries (`test_fim_ratio_formula`) and at all 144 sample
+points across 2 full revolutions of a real case-study object
+(`ksfim_timeseries`, §6, §8).
+
 ## 6. Outputs
 
 `app/ksfim_case_study.F` prints, per case-study object: the 4 KS
@@ -123,6 +144,15 @@ rank-corrected reduced `det(F_ks)`, and both the raw and corrected
 KS/Cartesian ratios — so the inflated raw number and the corrected one are
 visible side by side rather than the corrected analysis replacing the
 original silently.
+
+`app/ksfim_timeseries.F` (Phase 4, issue #2) tracks object 35497 (Ariane 5
+ESC-A) across 2 full orbital revolutions (144 sample points, mean-anomaly-
+stepped Keplerian propagation via `oe2car`), printing at each step `r`,
+`rank_c`/`rank_ks`, the raw and rank-corrected determinants, the actual
+`reduced_det_ks/det_cartesian` ratio, and the closed-form-predicted
+`64·r³`, plus the max relative difference between them over the whole
+series — both to `stdout` (summary) and `output/ksfim_timeseries_35497.csv`
+(full series, one row per sample).
 
 ## 7. Complexity & Performance
 
@@ -137,7 +167,8 @@ no optimization loop. Single-threaded; the 4-core cap (`GitHub\CLAUDE.md`
 checking both rank and eigenvalue-gap magnitude), 1/1
 (`test_fim_reduced_consistency`), 9/9 (`test_fim_analytical_vs_fd`,
 Phase 2, issue #4), 4/4 (`test_timeconv`, Phase 2, issue #3), 4/4
-(`test_fim_geo_edge`, Phase 3, issue #1) — **45/45 passing**.
+(`test_fim_geo_edge`, Phase 3, issue #1), 20/20
+(`test_fim_ratio_formula`, Phase 4, issue #2) — **65/65 passing**.
 
 **Empirical findings** (this repo's own runs, not carried over from the
 presentation):
@@ -217,6 +248,26 @@ extends it**:
   at matching rank) — only the raw ratio's absolute magnitude, which
   changed by the expected `~1/σ²` factor.
 
+**Phase 4 (issue #2) closes the analytical picture with an exact formula,
+then confirms it holds across time, not just at isolated snapshots**:
+- **`test_fim_ratio_formula`**: derived and verified `reduced_det_ks /
+  det_cartesian = 64·r³` exactly (§5) across 10 varied orbits (different
+  `a,e,i,RAAN,AOP,M`) and station geometries evaluated together, plus a
+  direct check of the `|u|²=r` regularizing identity itself — 20/20
+  passing, reldiff `~1e-8`–`1e-10` in every case. This is a strictly
+  stronger result than Phase 1/2's "constant across station geometry"
+  finding (`test_fim_reduced_consistency`): the ratio isn't merely
+  constant, its exact numerical value is predictable from `r` alone.
+- **`ksfim_timeseries`**: tracked object 35497 across 2 full revolutions
+  (144 samples, `r` ranging 6635.62–26894.78 km from perigee to apogee),
+  checking the closed-form prediction at every point rather than only at
+  isolated snapshots — max relative difference between the actual and
+  `64·r³`-predicted ratio was `1.474×10⁻⁹` across the entire series. This
+  also directly addresses the time-series limitation noted below: the
+  reason observability changes over a revolution is fully explained by
+  `r`'s own variation along the orbit, not by any independent KS-space
+  effect.
+
 **Conclusion**: the original presentation's raw-4×4-determinant comparison
 is not methodologically sound. The 4×4 KS-space FIM is empirically
 confirmed rank-deficient (rank 3, structurally, in every tested case), and
@@ -243,11 +294,13 @@ same-basis comparison.
   independent analytical gradient via the textbook `dr=2L(u)du` identity;
   agrees with the finite-difference gradient to the full precision shown
   in every test and case-study object (§8).
-- **No time-series / multi-revolution observability tracking.** The
-  presentation's own plots show observability evolving over ~2 orbital
-  revolutions; this repo checks single-instant snapshots only, sufficient
-  for the structural question under test but not a full reproduction of
-  the original study's scope.
+- ~~No time-series / multi-revolution observability tracking.~~
+  **Resolved, Phase 4 (issue #2).** `app/ksfim_timeseries.F` tracks object
+  35497 across 2 full revolutions (144 samples); the exact closed form
+  `reduced_det_ks/det_cartesian = 64·r³` (§5, `test_fim_ratio_formula`)
+  holds at every sampled point to `~1e-9` relative precision, showing that
+  the observability variation the presentation's own plots show over a
+  revolution is fully explained by `r`'s own variation along the orbit.
 - ~~Not yet extended to the presentation's GEO case (object 28868).~~
   **Resolved, Phase 3 (issue #1).** Added, with the caveat that this
   case's orbital elements weren't published in the source and a
