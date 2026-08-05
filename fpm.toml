@@ -1,0 +1,36 @@
+name = "ksfim"
+version = "0.1.0"
+license = "license"
+author = "Harishkumar Sellamuthu"
+description = "Rank-correct, dimensionally-normalized Fisher Information Matrix observability comparison between Cartesian and Kustaanheimo-Stiefel state representations"
+
+[library]
+source-dir = "src"
+
+[fortran]
+source-form = "fixed"
+implicit-typing = true
+implicit-external = true
+
+[[executable]]
+name = "ksfim_case_study"
+source-dir = "app"
+main = "ksfim_case_study.F"
+
+[[test]]
+name = "test_fim_cartesian"
+source-dir = "test"
+main = "test_fim_cartesian.F"
+
+[[test]]
+name = "test_fim_ks_rank"
+source-dir = "test"
+main = "test_fim_ks_rank.F"
+
+[[test]]
+name = "test_fim_reduced_consistency"
+source-dir = "test"
+main = "test_fim_reduced_consistency.F"
+
+[dependencies]
+ksrop = { git = "https://github.com/hari251086/KSROP", tag = "v2.2.0" }

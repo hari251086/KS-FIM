@@ -1,0 +1,33 @@
+# Credentials -- never commit these
+.env
+.env.*
+*.netrc
+*_credentials.*
+secrets.*
+
+# Compiled objects (if Fortran/C code lands here)
+*.o
+*.obj
+*.exe
+*.pdb
+*.ilk
+
+# fpm build tree
+build/
+
+# Generated test/run reports (output/.gitkeep marks the dir as tracked, contents are not)
+output/*.csv
+output/*.txt
+!output/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editor/OS
+.vscode/
+.idea/
+*~
+.DS_Store
