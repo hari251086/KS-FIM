@@ -25,20 +25,23 @@ both FIMs independently (using KSROP's own tested KS-transformation code
 as ground truth) and checks empirically whether that's actually what's
 going on.
 
-**Status: Phase 1 + Phase 2 complete (41/41 tests).** The rank-deficiency
+**Status: Phase 1-3 complete (45/45 tests).** The rank-deficiency
 hypothesis is confirmed in every tested case, including a direct
-reproduction of the presentation's own 4 case-study objects, and the
-rank-corrected KS/Cartesian ratio behaves exactly as a coordinate-scaling
-artifact would — constant across very different station geometries for a
-fixed satellite position, not evidence of genuine new information from
-using KS coordinates. Phase 2 (issues #3, #4) added an independent
-analytical-gradient cross-check (agrees with the numerical one to full
-displayed precision) and GMST-accurate per-epoch station placement — which
-left the rank-corrected ratio bit-for-bit unchanged while the *raw* ratio
-changed substantially, even flipping sign for one object, a second,
-independent demonstration that the raw comparison isn't sound. See
-`ALGORITHM.md` §8 for full findings, or issue #6 for the same writeup as
-the durable GitHub record of the finding.
+reproduction of the presentation's own 4 HEO case-study objects plus its
+GEO case, and the rank-corrected KS/Cartesian ratio behaves exactly as a
+coordinate-scaling artifact would — constant across very different
+station geometries for a fixed satellite position, not evidence of
+genuine new information from using KS coordinates. Phase 2 (issues #3,
+#4) added an independent analytical-gradient cross-check (agrees with the
+numerical one to full displayed precision) and GMST-accurate per-epoch
+station placement — which left the rank-corrected ratio bit-for-bit
+unchanged while the *raw* ratio changed substantially, even flipping sign
+for one object. Phase 3 (issue #1) added the GEO case and an extreme
+1-station edge test — confirming `rank(F_ks)=rank(F_cartesian)` down to
+rank 1, and generalizing a caveat the source presentation only noted for
+near-degenerate station pairs (raw determinant → 0) into "true at any low
+station count." See `ALGORITHM.md` §8 for full findings, or issue #6 for
+the same writeup as the durable GitHub record of the finding.
 
 Independent of every other repo under `GitHub\` except KSROP (reused for
 the KS transformation, same pattern as KS-Pc/OREM).
@@ -56,15 +59,18 @@ KS-FIM/
 │   └── timeconv.F       GMST (IAU-1982) + geodetic-to-ECI conversion
 ├── app/
 │   └── ksfim_case_study.F   reproduces the COSPAR presentation's own
-│                              4 HEO case-study objects, GMST-accurate
+│                              4 HEO case-study objects (GMST-accurate)
+│                              plus its GEO case (issue #1)
 ├── test/
 │   ├── test_fim_cartesian.F            hand-computable sanity check
 │   ├── test_fim_ks_rank.F              core rank-deficiency test
 │   ├── test_fim_reduced_consistency.F  Jacobian-scaling-artifact test
 │   ├── test_fim_analytical_vs_fd.F     analytical-vs-numerical gradient
 │   │                                    cross-check (issue #4)
-│   └── test_timeconv.F                 GMST/geodetic-to-ECI checks
-│                                        (issue #3)
+│   ├── test_timeconv.F                 GMST/geodetic-to-ECI checks
+│   │                                    (issue #3)
+│   └── test_fim_geo_edge.F             1-/2-station rank-tracking edge
+│                                        case (issue #1)
 ├── input/
 │   └── const_new.dat   physical constants (from KSROP)
 ├── fpm.toml
@@ -79,9 +85,10 @@ fpm test --compiler ifx
 fpm run ksfim_case_study --compiler ifx
 ```
 
-Expect 41/41 tests passing and, for each of the 4 case-study objects, a
-printed comparison of the raw (presentation-style) and rank-corrected
-KS/Cartesian determinant ratios (both finite-difference and analytical).
+Expect 45/45 tests passing and, for each of the 4 HEO case-study objects
+plus the GEO case, a printed comparison of the raw (presentation-style)
+and rank-corrected KS/Cartesian determinant ratios (both finite-difference
+and analytical).
 
 ## 4. Building / Setup
 
@@ -101,7 +108,7 @@ invoking `fpm`). Not yet verified with `gfortran`.
 
 ## 6. Testing
 
-`fpm test --compiler ifx` — **41/41 tests passing** as of the last run
+`fpm test --compiler ifx` — **45/45 tests passing** as of the last run
 documented here (2026-08-05):
 - `test_fim_cartesian`: 3/3 — Cartesian FIM builder matches a
   hand-computable orthogonal-line-of-sight geometry exactly.
@@ -115,6 +122,8 @@ documented here (2026-08-05):
   including matching rank and reduced determinant.
 - `test_timeconv`: 4/4 (issue #3) — `gmst_deg` matches the published
   J2000.0 reference value to `1e-4` deg; `geodetic_to_eci` sanity checks.
+- `test_fim_geo_edge`: 4/4 (issue #1) — `rank(F_ks)=rank(F_cartesian)`
+  holds down to the extreme edge case of a single observing station.
 
 ## 7. Inputs & Outputs
 
@@ -130,11 +139,11 @@ comparisons. `output/` exists per repo convention but is currently unused.
 ## 8. Known Issues / Limitations
 
 See `ALGORITHM.md` §9 for the full technical detail. Tracked as issues:
-#1 GEO case study (object 28868) not yet reproduced, #2 multi-revolution
-observability time series not yet implemented, #5 open question on
-whether any correctly-normalized representation-dependent observability
-effect exists beyond what this repo falsified. #3 (GMST-accurate station
-placement) and #4 (analytical-gradient cross-check) resolved in Phase 2.
+#2 multi-revolution observability time series not yet implemented, #5
+open question on whether any correctly-normalized representation-dependent
+observability effect exists beyond what this repo falsified. #1 (GEO case)
+resolved in Phase 3; #3 (GMST-accurate station placement) and #4
+(analytical-gradient cross-check) resolved in Phase 2.
 
 ## 9. Version History
 
@@ -162,6 +171,19 @@ placement) and #4 (analytical-gradient cross-check) resolved in Phase 2.
   station-geometry change — even flipping sign for object 42928, which is
   physically nonsensical for a real information metric. 41/41 tests
   passing. See `ALGORITHM.md` §8.
+- **2026-08-05 (Phase 3)** — Issue #1 resolved. Added the source
+  presentation's GEO case (object 28868, ANIK F1R — a representative
+  near-GEO state is used since the source doesn't publish exact orbital
+  elements for this case) with its own 1-/2-station sub-cases, plus a
+  dedicated regression test (`test_fim_geo_edge`) at the same regime.
+  Confirms `rank(F_ks)=rank(F_cartesian)` down to the extreme edge case of
+  a single station (rank 1), and generalizes a caveat the source
+  presentation only noted for near-degenerate close station pairs (raw
+  determinant → 0) into "true at any low station count." Also caught and
+  fixed a units mistake found while adding this case: station σ had been
+  set to the station *altitude* values instead of the slide's published
+  `σ=10 km` — a magnitude-only correction, confirmed not to affect any
+  rank or ratio-based finding. 45/45 tests passing. See `ALGORITHM.md` §8.
 
 ## 10. Dependencies / References
 

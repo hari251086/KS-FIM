@@ -136,8 +136,8 @@ no optimization loop. Single-threaded; the 4-core cap (`GitHub\CLAUDE.md`
 24/24 (`test_fim_ks_rank`, 3 orbital regimes × 4 station counts each,
 checking both rank and eigenvalue-gap magnitude), 1/1
 (`test_fim_reduced_consistency`), 9/9 (`test_fim_analytical_vs_fd`,
-Phase 2, issue #4), 4/4 (`test_timeconv`, Phase 2, issue #3) —
-**41/41 passing**.
+Phase 2, issue #4), 4/4 (`test_timeconv`, Phase 2, issue #3), 4/4
+(`test_fim_geo_edge`, Phase 3, issue #1) — **45/45 passing**.
 
 **Empirical findings** (this repo's own runs, not carried over from the
 presentation):
@@ -190,6 +190,32 @@ extends it**:
   why the raw 4×4 determinant is not a sound observability measure: it is
   numerically unstable around the near-zero 4th eigenvalue's sign, not
   just its magnitude.
+- **GEO case + station-count edge test (issue #1)**: extended
+  `ksfim_case_study` with the presentation's own GEO object (28868, ANIK
+  F1R — no orbital elements published for this case in the source, so a
+  representative near-GEO state is used, documented in the app's header)
+  and its 1-/2-station sub-cases (Kermit; Kermit+Fairbanks), plus a
+  dedicated regression test (`test_fim_geo_edge`, 4/4) at the same
+  regime. Confirms `rank(F_ks) = rank(F_cartesian) = nstat` exactly down
+  to the extreme edge case of a **single station** (rank 1) — the
+  smallest possible test of the rank formula. The raw 4×4 determinant is
+  numerically zero (`~1e-57` to `~1e-27`) at both 1 and 2 stations, since
+  true rank is 1 or 2, never touching 4 — which directly **generalizes**
+  a caveat the source presentation itself noted only for near-degenerate
+  close station pairs ("if two stations are very near, the observability
+  index can go to zero, misconstrued as a single observing station"):
+  the raw metric collapses to zero whenever station count is low, not
+  only when stations happen to be nearly coincident.
+- **Sigma correction**: `ksfim_case_study`'s station measurement-noise
+  σ was found (while adding the GEO case, which uses the same slide's
+  settings box) to have been mistakenly set to the station *altitude*
+  values (0.01–2.39 km) rather than the slide's actual published
+  `σ = 10 km`. Fixed. Purely a magnitude-normalization correction — σ
+  enters both FIMs identically per station, so it cannot change rank, and
+  (confirmed empirically) does not change the rank-corrected ratio at all
+  (both reduced determinants scale by the same power of σ when compared
+  at matching rank) — only the raw ratio's absolute magnitude, which
+  changed by the expected `~1/σ²` factor.
 
 **Conclusion**: the original presentation's raw-4×4-determinant comparison
 is not methodologically sound. The 4×4 KS-space FIM is empirically
@@ -222,9 +248,12 @@ same-basis comparison.
   revolutions; this repo checks single-instant snapshots only, sufficient
   for the structural question under test but not a full reproduction of
   the original study's scope.
-- **Not yet extended to the presentation's GEO case (object 28868).** Only
-  the 4 HEO objects are reproduced; the GEO single/two-station case from
-  the same presentation is not yet checked.
+- ~~Not yet extended to the presentation's GEO case (object 28868).~~
+  **Resolved, Phase 3 (issue #1).** Added, with the caveat that this
+  case's orbital elements weren't published in the source and a
+  representative near-GEO state is used instead (documented in the app's
+  header comment) — the 1-/2-station structure and station data are the
+  presentation's own.
 - **Doesn't (yet) address whether representation-dependent local
   linearization is a real effect elsewhere.** This repo falsifies one
   specific presentation's specific comparison; it does not itself explore

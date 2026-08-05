@@ -42,5 +42,10 @@ name = "test_timeconv"
 source-dir = "test"
 main = "test_timeconv.F"
 
+[[test]]
+name = "test_fim_geo_edge"
+source-dir = "test"
+main = "test_fim_geo_edge.F"
+
 [dependencies]
 ksrop = { git = "https://github.com/hari251086/KSROP", tag = "v2.2.0" }
