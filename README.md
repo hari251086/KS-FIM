@@ -112,12 +112,14 @@ comparisons. `output/` exists per repo convention but is currently unused.
 
 ## 8. Known Issues / Limitations
 
-See `ALGORITHM.md` §9 for the full list — in brief: no GMST/epoch-accurate
-station placement (deliberate Phase 1 simplification, doesn't affect the
-structural findings), no multi-revolution time-series tracking, numerical
-rather than analytical KS-space gradients, the presentation's GEO case
-(object 28868) not yet reproduced. No GitHub issues filed yet — this repo
-has no remote issue tracker history before this initial commit.
+See `ALGORITHM.md` §9 for the full technical detail. Tracked as issues:
+#1 GEO case study (object 28868) not yet reproduced, #2 multi-revolution
+observability time series not yet implemented, #3 GMST-accurate station
+placement (deliberate Phase 1 simplification — doesn't affect the
+structural findings), #4 numerical (not yet cross-checked analytical)
+KS-space gradient, #5 open question on whether any correctly-normalized
+representation-dependent observability effect exists beyond what this
+repo falsified.
 
 ## 9. Version History
 
