@@ -72,6 +72,11 @@ observability?
    chain rule, so this doesn't silently inherit any error in that
    derivation — it re-derives the same gradient independently from
    already-tested transformation code. `F = Σᵢ (1/σᵢ²) grad·gradᵀ`, 4×4.
+   **Phase 2 (issue #4)**: `fim_build_ks_analytical`/
+   `range_grad_ks_analytical` provide a second, independent build via the
+   textbook `dr=2·L(u)·du` differential identity — agrees with the
+   finite-difference result to full displayed precision (§8), so this
+   isn't just a numerical-differencing artifact.
 4. **Eigendecomposition** — `jacobi_eig` (`src/linalg.F`, classic cyclic
    Jacobi rotation method, since `F` is always real symmetric
    positive-semidefinite by construction). Used instead of a raw
@@ -130,7 +135,9 @@ no optimization loop. Single-threaded; the 4-core cap (`GitHub\CLAUDE.md`
 3/3 (`test_fim_cartesian`, hand-computable orthogonal-LOS geometry),
 24/24 (`test_fim_ks_rank`, 3 orbital regimes × 4 station counts each,
 checking both rank and eigenvalue-gap magnitude), 1/1
-(`test_fim_reduced_consistency`) — **28/28 passing**.
+(`test_fim_reduced_consistency`), 9/9 (`test_fim_analytical_vs_fd`,
+Phase 2, issue #4), 4/4 (`test_timeconv`, Phase 2, issue #3) —
+**41/41 passing**.
 
 **Empirical findings** (this repo's own runs, not carried over from the
 presentation):
@@ -150,14 +157,39 @@ presentation):
   what a coordinate-scaling artifact predicts, and not what a genuine
   observability improvement from station geometry would look like.
 - `ksfim_case_study`: reproducing the presentation's own 4 HEO objects
-  (35497, 37151, 39615, 42928) with its own published orbital elements and
-  station table (simplified: no GMST epoch alignment — see the app's
-  header comment for why this doesn't affect the structural question),
+  (35497, 37151, 39615, 42928) with its own published orbital elements,
+  station table, **and (Phase 2, issue #3) each object's own real
+  observation epoch, with stations placed via genuine GMST rotation**
+  (`src/timeconv.F`) instead of the earlier fixed-offset simplification —
   `rank_est = 3` in all 4 cases, with the 4th eigenvalue `10⁻⁸` to
   `10⁻¹⁰` relative to the largest. The rank-corrected KS/Cartesian ratio
   differs *between* objects (`9.6×10¹³` to `2.4×10¹³`, roughly a 4×
   spread) — consistent with the ratio depending on each object's own
   position/`|u|`, exactly as predicted, rather than being universal.
+
+**Phase 2 (issues #3, #4) strengthens the finding further, not just
+extends it**:
+- **Analytical cross-check (issue #4)**: `range_grad_ks_analytical`
+  (`src/fim.F`), using the textbook KS differential identity `dr =
+  2·L(u)·du`, reproduces the finite-difference gradient's reduced
+  determinant to the full precision shown (identical to all displayed
+  digits, both in the synthetic test suite and for all 4 real case-study
+  objects). Phase 1's findings are not an artifact of the numerical
+  differencing method — an independently-derived analytical result gives
+  the same answer.
+- **GMST accuracy (issue #3) reveals something additional**: adding real
+  per-object epoch/GMST station placement left the **rank-corrected**
+  ratio *bit-for-bit unchanged* from the earlier simplified placement, for
+  every object — exactly as predicted, since that ratio depends only on
+  satellite position, never on station geometry. The **raw** ratio, by
+  contrast, changed substantially under the same station-geometry change
+  — for object 42928 it flipped sign entirely (`+1.50×10³` before →
+  `−2.05×10⁴` after). A negative "observability" is physically
+  nonsensical for any legitimate information metric — this is a second,
+  independent, concrete demonstration (beyond the magnitude argument) of
+  why the raw 4×4 determinant is not a sound observability measure: it is
+  numerically unstable around the near-zero 4th eigenvalue's sign, not
+  just its magnitude.
 
 **Conclusion**: the original presentation's raw-4×4-determinant comparison
 is not methodologically sound. The 4×4 KS-space FIM is empirically
@@ -173,27 +205,23 @@ same-basis comparison.
 
 ## 9. Known Limitations
 
-- **No GMST/epoch-accurate station placement.** Stations are placed at
-  their published geodetic coordinates in the same inertial frame as the
-  satellite, without rotating for Earth's sidereal orientation at the
-  actual observation epoch. This was a deliberate Phase 1 simplification
-  (see `app/ksfim_case_study.F` header) — it does not affect the
-  structural rank-deficiency/Jacobian-scaling findings above, which are
-  properties of the coordinate transformation itself, not of tracking
-  geometry — but it does mean the absolute magnitudes in this repo's case
-  study are not a bit-for-bit reproduction of the presentation's own
-  numbers.
+- ~~No GMST/epoch-accurate station placement.~~ **Resolved, Phase 2
+  (issue #3).** `src/timeconv.F` (`gmst_deg`, IAU-1982 formula, verified
+  against the published J2000.0 reference value to `1e-4` deg;
+  `geodetic_to_eci`) now rotates each case-study object's stations by its
+  own real observation epoch's GMST. Confirmed this doesn't change the
+  rank-corrected finding (bit-for-bit identical ratio) while substantially
+  changing — even sign-flipping — the raw one (§8).
+- ~~Numerical (not analytical) KS-space gradient.~~ **Resolved, Phase 2
+  (issue #4).** `range_grad_ks_analytical` (`src/fim.F`) adds an
+  independent analytical gradient via the textbook `dr=2L(u)du` identity;
+  agrees with the finite-difference gradient to the full precision shown
+  in every test and case-study object (§8).
 - **No time-series / multi-revolution observability tracking.** The
   presentation's own plots show observability evolving over ~2 orbital
   revolutions; this repo checks single-instant snapshots only, sufficient
   for the structural question under test but not a full reproduction of
   the original study's scope.
-- **Numerical (not analytical) KS-space gradient.** `range_grad_ks` uses
-  central finite differences rather than an analytical Jacobian. This was
-  a deliberate choice (independence from the presentation's own possibly-
-  flawed analytical derivation) but means gradient accuracy is bounded by
-  finite-difference truncation/roundoff (~`10⁻⁶` relative step), not
-  exact to machine precision.
 - **Not yet extended to the presentation's GEO case (object 28868).** Only
   the 4 HEO objects are reproduced; the GEO single/two-station case from
   the same presentation is not yet checked.
@@ -212,7 +240,8 @@ same-basis comparison.
   `oe2car` (Keplerian-to-Cartesian conversion), `init_constants`
   (physical constants incl. `R_Earth`, `amue`, read from
   `input/const_new.dat`, copied from KSROP's own `input/` at repo setup
-  time — same pattern as KS-Pc/OREM).
+  time — same pattern as KS-Pc/OREM), `cal2jd` (calendar-to-Julian-date,
+  used by `src/timeconv.F`'s `gmst_deg`).
 - **Source material**: "Regularized Orbit Observability for Resident
   Space Objects," H. Sellamuthu, 43rd COSPAR Scientific Assembly,
   PEDAS.1-0023-21 (2021) — the presentation this repo evaluates. Located

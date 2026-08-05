@@ -32,5 +32,15 @@ name = "test_fim_reduced_consistency"
 source-dir = "test"
 main = "test_fim_reduced_consistency.F"
 
+[[test]]
+name = "test_fim_analytical_vs_fd"
+source-dir = "test"
+main = "test_fim_analytical_vs_fd.F"
+
+[[test]]
+name = "test_timeconv"
+source-dir = "test"
+main = "test_timeconv.F"
+
 [dependencies]
 ksrop = { git = "https://github.com/hari251086/KSROP", tag = "v2.2.0" }

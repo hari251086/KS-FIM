@@ -110,6 +110,135 @@ c     ============================================================
       end
 
 c     ============================================================
+      subroutine ks_lmatrix(u, L)
+c     Builds the 4x4 Levi-Civita/KS matrix L(u) from KSROP's own
+c     convention (matches the presentation's equations.docx and
+c     KSROP's internal ks2car construction: r=(x,y,z,0)=L(u)u).
+c     ============================================================
+      implicit double precision (a-h, o-z)
+      double precision u(4), L(4,4)
+
+      L(1,1) = u(1)
+      L(1,2) = -u(2)
+      L(1,3) = -u(3)
+      L(1,4) = u(4)
+      L(2,1) = u(2)
+      L(2,2) = u(1)
+      L(2,3) = -u(4)
+      L(2,4) = -u(3)
+      L(3,1) = u(3)
+      L(3,2) = u(4)
+      L(3,3) = u(1)
+      L(3,4) = u(2)
+      L(4,1) = u(4)
+      L(4,2) = -u(3)
+      L(4,3) = u(2)
+      L(4,4) = -u(1)
+
+      return
+      end
+
+c     ============================================================
+      subroutine range_grad_ks_analytical(u, w, stat_r, grad, ierr)
+c     Issue #4 cross-check: analytical KS-space gradient, independent
+c     of the finite-difference range_grad_ks above and independent of
+c     the source presentation's own (possibly mis-transcribed/
+c     ambiguous, see ALGORITHM.md) du/dr=L(u)^-1/2 chain-rule slide.
+c     Uses the standard, textbook KS DIFFERENTIAL identity instead
+c     (Stiefel & Scheifele): dr = 2*L(u)*du, i.e. dr_i/du_k = 2*L(u)_ik
+c     for i=1,2,3 (r's 4th component is identically zero and doesn't
+c     depend on the physical range h, so only L's first 3 rows enter
+c     the chain rule). Then dh/du_k = sum_i (dh/dr_i)(dr_i/du_k)
+c     = 2 * sum_{i=1}^3 grad_cartesian(i) * L(u)(i,k).
+c
+c     If this agrees with range_grad_ks's finite-difference result to
+c     within numerical tolerance, Phase 1's findings are independently
+c     confirmed via a second, analytically-derived method. If it
+c     disagrees, that itself is a finding (see ALGORITHM.md).
+c     ============================================================
+      implicit double precision (a-h, o-z)
+      double precision u(4), w, stat_r(3), grad(4)
+      integer ierr
+
+      double precision us0(4), x(3), xd(3), d(3)
+      double precision grad_cart(3), Lmat(4,4)
+      double precision umag
+      integer i, k
+
+      ierr = 0
+      umag = dsqrt(u(1)*u(1)+u(2)*u(2)+u(3)*u(3)+u(4)*u(4))
+      if (umag .lt. 1.d-6) then
+         ierr = 1
+         return
+      end if
+
+      do i = 1, 4
+         us0(i) = 0.d0
+      end do
+      call ks2car(u, us0, x, xd, w)
+
+      do i = 1, 3
+         d(i) = x(i) - stat_r(i)
+      end do
+      call range_grad_cartesian(x, stat_r, grad_cart)
+
+      call ks_lmatrix(u, Lmat)
+
+      do k = 1, 4
+         grad(k) = 0.d0
+         do i = 1, 3
+            grad(k) = grad(k) + grad_cart(i)*Lmat(i,k)
+         end do
+         grad(k) = 2.d0*grad(k)
+      end do
+
+      return
+      end
+
+c     ============================================================
+      subroutine fim_build_ks_analytical(u, w, nstat, stat_pos,
+     &                                     sigma, F, ierr)
+c     Same as fim_build_ks but using range_grad_ks_analytical instead
+c     of the finite-difference gradient -- see that subroutine's
+c     header for why (issue #4 cross-check).
+c     ============================================================
+      implicit double precision (a-h, o-z)
+      integer nstat, ierr
+      double precision u(4), w, stat_pos(3,nstat), sigma(nstat)
+      double precision F(4,4)
+
+      double precision grad(4), stat_r(3)
+      integer i, j, k, ierr_g
+
+      ierr = 0
+      do i = 1, 4
+         do j = 1, 4
+            F(i,j) = 0.d0
+         end do
+      end do
+
+      do k = 1, nstat
+         stat_r(1) = stat_pos(1,k)
+         stat_r(2) = stat_pos(2,k)
+         stat_r(3) = stat_pos(3,k)
+         call range_grad_ks_analytical(u, w, stat_r, grad, ierr_g)
+         if (ierr_g .ne. 0) then
+            ierr = 1
+            goto 90
+         end if
+         do i = 1, 4
+            do j = 1, 4
+               F(i,j) = F(i,j) +
+     &            grad(i)*grad(j)/(sigma(k)*sigma(k))
+            end do
+         end do
+      end do
+
+ 90   continue
+      return
+      end
+
+c     ============================================================
       subroutine fim_build_cartesian(r, nstat, stat_pos, sigma,
      &                                F, ierr)
 c     3x3 FIM from nstat range measurements, Cartesian state.

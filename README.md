@@ -25,14 +25,20 @@ both FIMs independently (using KSROP's own tested KS-transformation code
 as ground truth) and checks empirically whether that's actually what's
 going on.
 
-**Status: Phase 1 complete.** Result: the rank-deficiency hypothesis is
-confirmed in every tested case (28/28 tests passing, including a direct
-reproduction of the presentation's own 4 case-study objects), and the
+**Status: Phase 1 + Phase 2 complete (41/41 tests).** The rank-deficiency
+hypothesis is confirmed in every tested case, including a direct
+reproduction of the presentation's own 4 case-study objects, and the
 rank-corrected KS/Cartesian ratio behaves exactly as a coordinate-scaling
 artifact would — constant across very different station geometries for a
-fixed satellite position — not as evidence of genuine new information from
-using KS coordinates. See `ALGORITHM.md` §8 for full findings, or issue #6
-for the same writeup as the durable GitHub record of the finding.
+fixed satellite position, not evidence of genuine new information from
+using KS coordinates. Phase 2 (issues #3, #4) added an independent
+analytical-gradient cross-check (agrees with the numerical one to full
+displayed precision) and GMST-accurate per-epoch station placement — which
+left the rank-corrected ratio bit-for-bit unchanged while the *raw* ratio
+changed substantially, even flipping sign for one object, a second,
+independent demonstration that the raw comparison isn't sound. See
+`ALGORITHM.md` §8 for full findings, or issue #6 for the same writeup as
+the durable GitHub record of the finding.
 
 Independent of every other repo under `GitHub\` except KSROP (reused for
 the KS transformation, same pattern as KS-Pc/OREM).
@@ -44,16 +50,21 @@ KS-FIM/
 ├── src/
 │   ├── linalg.F       Jacobi eigenvalue solver + small determinant
 │   │                    helpers for real symmetric 3x3/4x4 matrices
-│   └── fim.F           FIM builders (Cartesian analytical gradient,
-│                        KS finite-difference gradient), rank-corrected
-│                        reduced-determinant helpers
+│   ├── fim.F           FIM builders (Cartesian analytical gradient, KS
+│   │                    finite-difference AND analytical gradient),
+│   │                    rank-corrected reduced-determinant helpers
+│   └── timeconv.F       GMST (IAU-1982) + geodetic-to-ECI conversion
 ├── app/
 │   └── ksfim_case_study.F   reproduces the COSPAR presentation's own
-│                              4 HEO case-study objects
+│                              4 HEO case-study objects, GMST-accurate
 ├── test/
 │   ├── test_fim_cartesian.F            hand-computable sanity check
 │   ├── test_fim_ks_rank.F              core rank-deficiency test
-│   └── test_fim_reduced_consistency.F  Jacobian-scaling-artifact test
+│   ├── test_fim_reduced_consistency.F  Jacobian-scaling-artifact test
+│   ├── test_fim_analytical_vs_fd.F     analytical-vs-numerical gradient
+│   │                                    cross-check (issue #4)
+│   └── test_timeconv.F                 GMST/geodetic-to-ECI checks
+│                                        (issue #3)
 ├── input/
 │   └── const_new.dat   physical constants (from KSROP)
 ├── fpm.toml
@@ -68,9 +79,9 @@ fpm test --compiler ifx
 fpm run ksfim_case_study --compiler ifx
 ```
 
-Expect 28/28 tests passing and, for each of the 4 case-study objects, a
+Expect 41/41 tests passing and, for each of the 4 case-study objects, a
 printed comparison of the raw (presentation-style) and rank-corrected
-KS/Cartesian determinant ratios.
+KS/Cartesian determinant ratios (both finite-difference and analytical).
 
 ## 4. Building / Setup
 
@@ -90,7 +101,7 @@ invoking `fpm`). Not yet verified with `gfortran`.
 
 ## 6. Testing
 
-`fpm test --compiler ifx` — **28/28 tests passing** as of the last run
+`fpm test --compiler ifx` — **41/41 tests passing** as of the last run
 documented here (2026-08-05):
 - `test_fim_cartesian`: 3/3 — Cartesian FIM builder matches a
   hand-computable orthogonal-line-of-sight geometry exactly.
@@ -99,6 +110,11 @@ documented here (2026-08-05):
 - `test_fim_reduced_consistency`: 1/1 — the rank-corrected KS/Cartesian
   ratio is constant to 7-8 significant figures across 5 very different
   station configurations at a fixed satellite position.
+- `test_fim_analytical_vs_fd`: 9/9 (issue #4) — the analytical KS-space
+  gradient agrees with the finite-difference one to ~`1e-10` relative,
+  including matching rank and reduced determinant.
+- `test_timeconv`: 4/4 (issue #3) — `gmst_deg` matches the published
+  J2000.0 reference value to `1e-4` deg; `geodetic_to_eci` sanity checks.
 
 ## 7. Inputs & Outputs
 
@@ -115,12 +131,10 @@ comparisons. `output/` exists per repo convention but is currently unused.
 
 See `ALGORITHM.md` §9 for the full technical detail. Tracked as issues:
 #1 GEO case study (object 28868) not yet reproduced, #2 multi-revolution
-observability time series not yet implemented, #3 GMST-accurate station
-placement (deliberate Phase 1 simplification — doesn't affect the
-structural findings), #4 numerical (not yet cross-checked analytical)
-KS-space gradient, #5 open question on whether any correctly-normalized
-representation-dependent observability effect exists beyond what this
-repo falsified.
+observability time series not yet implemented, #5 open question on
+whether any correctly-normalized representation-dependent observability
+effect exists beyond what this repo falsified. #3 (GMST-accurate station
+placement) and #4 (analytical-gradient cross-check) resolved in Phase 2.
 
 ## 9. Version History
 
@@ -134,6 +148,20 @@ repo falsified.
   in every tested case), and the rank-corrected KS/Cartesian ratio behaves
   as a predictable coordinate-scaling artifact, not genuine new
   observability information. See `ALGORITHM.md` §8.
+- **2026-08-05 (Phase 2)** — Issues #3 and #4 resolved same day.
+  `src/timeconv.F` (`gmst_deg`, `geodetic_to_eci`) adds real per-object
+  GMST-accurate station placement to the case study; `range_grad_ks_
+  analytical`/`fim_build_ks_analytical` (`src/fim.F`) add an independent
+  analytical gradient (textbook `dr=2L(u)du` identity) alongside the
+  original finite-difference one. Both strengthen the finding rather than
+  just extending it: the analytical gradient agrees with the numerical one
+  to full displayed precision (not just a numerical-differencing
+  artifact), and the GMST fix left the rank-corrected KS/Cartesian ratio
+  bit-for-bit unchanged (depends only on satellite position, exactly as
+  predicted) while the *raw* ratio changed substantially under the same
+  station-geometry change — even flipping sign for object 42928, which is
+  physically nonsensical for a real information metric. 41/41 tests
+  passing. See `ALGORITHM.md` §8.
 
 ## 10. Dependencies / References
 

@@ -3,29 +3,30 @@ c     ksfim_case_study.F -- reproduces the 2021 COSPAR presentation's
 c     4 highly-elliptical-orbit case studies (objects 35497, 37151,
 c     39615, 42928 -- the same orbital elements published in
 c     "Regularized Orbit Observability for Resident Space Objects",
-c     PEDAS.1-0023-21) and reports THREE numbers side by side per
-c     case: the raw 4x4 det(F_ks) (what the original presentation
-c     reported, structurally rank-deficient per this repo's ALGORITHM.
-c     md), the rank-corrected reduced determinant (product of the top
-c     3 eigenvalues only), and det(F_cartesian) for the same scenario
-c     -- so the "KS observability advantage" claim can be read
-c     honestly instead of via the inflated raw 4x4 number.
+c     PEDAS.1-0023-21) and reports numbers side by side per case: the
+c     raw 4x4 det(F_ks) (what the original presentation reported,
+c     structurally rank-deficient per this repo's ALGORITHM.md), the
+c     rank-corrected reduced determinant, det(F_cartesian) for the
+c     same scenario, and (issue #4) the same reduced determinant
+c     recomputed via the independent analytical KS gradient as a
+c     cross-check -- so the "KS observability advantage" claim can be
+c     read honestly instead of via the inflated raw 4x4 number.
 c
-c     Ground stations and orbital elements transcribed directly from
-c     the slide deck (E:\Research\Conferences\c2021 - COSPAR\Paper
-c     and Presentation\DROPBOX-31122020\...FULLPRESENTATIONSLIDES.pdf,
-c     "Case Studies" slides) -- not re-derived, so results are
-c     directly comparable to the original numbers.
+c     Ground stations, orbital elements, AND epochs transcribed
+c     directly from the slide deck (E:\Research\Conferences\c2021 -
+c     COSPAR\Paper and Presentation\DROPBOX-31122020\...
+c     FULLPRESENTATIONSLIDES.pdf, "Case Studies" slides) -- not
+c     re-derived, so results are directly comparable to the original.
 c
-c     Simplification vs. the original: stations are placed at their
-c     published geodetic lat/lon on a spherical Earth, in the SAME
-c     inertial frame as the satellite state, at a nominal zero Earth-
-c     rotation offset (no GMST epoch alignment). This does not affect
-c     the structural question under test (rank-deficiency and Jacobian
-c     -scaling are properties of the coordinate MAP, not of which
-c     specific stations are used or their exact sidereal alignment) --
-c     see ALGORITHM.md section 2 for why this simplification is valid
-c     for this repo's purpose.
+c     Issue #3 (resolved): stations are now placed at their published
+c     geodetic lat/lon, rotated into each object's own ECI frame via
+c     GMST at that object's actual observation epoch (src/timeconv.F)
+c     -- a spherical, not WGS84-oblate, Earth model, consistent with
+c     the rest of this repo's simplified station-geometry treatment.
+c     This does not change the structural findings (rank-deficiency
+c     and Jacobian-scaling are properties of the coordinate MAP, not
+c     of tracking geometry) but makes the reported numbers a genuine
+c     per-object, per-epoch snapshot rather than a fixed offset.
 c     ============================================================
       program ksfim_case_study
       implicit double precision (a-h, o-z)
@@ -37,14 +38,18 @@ c     ============================================================
       double precision stat_lat(nstat_max), stat_lon(nstat_max)
       double precision stat_alt(nstat_max)
       double precision stat_pos(3,nstat_max), sigma(nstat_max)
-      double precision Fc(3,3), Fk(4,4), eigval(4)
-      double precision det_c, det_k_raw, reduced_det
-      integer rank_est, ierr, ierr2, icase, k, nobj
+      double precision Fc(3,3), Fk(4,4), Fk_an(4,4)
+      double precision eigval(4), eigval_an(4)
+      double precision det_c, det_k_raw, reduced_det, reduced_det_an
+      integer rank_est, rank_an, ierr, ierr2, icase, k, nobj
+      double precision epoch_cal(6), jd_epoch, gmst
 
       parameter(nobj = 4)
       integer norad(nobj)
       double precision perigee_alt(nobj), ecc(nobj), inc(nobj)
       double precision raan(nobj), aop(nobj), manom(nobj)
+      double precision epoch_yr(nobj), epoch_mo(nobj), epoch_dy(nobj)
+      double precision epoch_hr(nobj), epoch_mn(nobj), epoch_sc(nobj)
       character*30 objname(nobj)
 
       call init_constants()
@@ -57,6 +62,12 @@ c     ============================================================
       raan(1) = 346.1476d0
       aop(1) = 154.0352d0
       manom(1) = 331.2056d0
+      epoch_yr(1) = 2015.d0
+      epoch_mo(1) = 6.d0
+      epoch_dy(1) = 6.d0
+      epoch_hr(1) = 14.d0
+      epoch_mn(1) = 7.d0
+      epoch_sc(1) = 22.d0
 
       norad(2) = 37151
       objname(2) = 'Long March 3B Upper Stage'
@@ -66,6 +77,12 @@ c     ============================================================
       raan(2) = 204.061d0
       aop(2) = 163.8209d0
       manom(2) = 341.4979d0
+      epoch_yr(2) = 2015.d0
+      epoch_mo(2) = 3.d0
+      epoch_dy(2) = 4.d0
+      epoch_hr(2) = 16.d0
+      epoch_mn(2) = 10.d0
+      epoch_sc(2) = 37.d0
 
       norad(3) = 39615
       objname(3) = 'Proton-M Briz-M Aux Tank'
@@ -75,6 +92,12 @@ c     ============================================================
       raan(3) = 118.9947d0
       aop(3) = 333.8816d0
       manom(3) = 12.4622d0
+      epoch_yr(3) = 2017.d0
+      epoch_mo(3) = 3.d0
+      epoch_dy(3) = 2.d0
+      epoch_hr(3) = 4.d0
+      epoch_mn(3) = 20.d0
+      epoch_sc(3) = 21.d0
 
       norad(4) = 42928
       objname(4) = 'IRNSS-1H/PSLV-PS4'
@@ -84,6 +107,12 @@ c     ============================================================
       raan(4) = 315.4336d0
       aop(4) = 125.4322d0
       manom(4) = 330.6148d0
+      epoch_yr(4) = 2017.d0
+      epoch_mo(4) = 11.d0
+      epoch_dy(4) = 1.d0
+      epoch_hr(4) = 4.d0
+      epoch_mn(4) = 15.d0
+      epoch_sc(4) = 9.d0
 
 c     Kwajalein, Ascension Island, SHAR, Tenerife
       stat_lat(1) = 8.717d0
@@ -106,18 +135,10 @@ c     Kwajalein, Ascension Island, SHAR, Tenerife
       stat_alt(4) = 2.39d0
       sigma(4) = 0.01d0
 
-      do k = 1, nstat_max
-         rs = R_earth + stat_alt(k)
-         stat_pos(1,k) = rs*dcos(stat_lat(k)*d2r)*dcos(stat_lon(k)*
-     &                    d2r)
-         stat_pos(2,k) = rs*dcos(stat_lat(k)*d2r)*dsin(stat_lon(k)*
-     &                    d2r)
-         stat_pos(3,k) = rs*dsin(stat_lat(k)*d2r)
-      end do
-
       write(*,*) '======================================'
       write(*,*) ' KS-FIM case-study reproduction'
       write(*,*) ' (COSPAR 2021 PEDAS.1-0023-21 objects)'
+      write(*,*) ' (issue #3: GMST-accurate station placement)'
       write(*,*) '======================================'
       write(*,*)
 
@@ -134,6 +155,21 @@ c     Kwajalein, Ascension Island, SHAR, Tenerife
          w = dsqrt(-0.5d0*(amue/a_kep(1)))
          call car2ks(x0, xd0, u, us, w)
 
+c        Object's own epoch -> JD -> GMST -> station ECI positions
+         epoch_cal(1) = epoch_yr(icase)
+         epoch_cal(2) = epoch_mo(icase)
+         epoch_cal(3) = epoch_dy(icase)
+         epoch_cal(4) = epoch_hr(icase)
+         epoch_cal(5) = epoch_mn(icase)
+         epoch_cal(6) = epoch_sc(icase)
+         call cal2jd(epoch_cal, jd_epoch)
+         call gmst_deg(jd_epoch, gmst)
+
+         do k = 1, nstat_max
+            call geodetic_to_eci(stat_lat(k), stat_lon(k),
+     &         stat_alt(k), R_earth, gmst, stat_pos(1,k))
+         end do
+
          call fim_build_cartesian(x0, nstat_max, stat_pos, sigma,
      &                             Fc, ierr)
          call mat3_det(Fc, det_c)
@@ -143,14 +179,21 @@ c     Kwajalein, Ascension Island, SHAR, Tenerife
          call fim_reduced_det_ks(Fk, reduced_det, rank_est, eigval,
      &                            ierr2)
 
+c        Issue #4 cross-check: same scenario, analytical gradient
+         call fim_build_ks_analytical(u, w, nstat_max, stat_pos,
+     &      sigma, Fk_an, ierr)
+         call fim_reduced_det_ks(Fk_an, reduced_det_an, rank_an,
+     &      eigval_an, ierr2)
+
 c        Raw 4x4 determinant -- the quantity the original
 c        presentation reported and compared directly to det_c
          det_k_raw = eigval(1)*eigval(2)*eigval(3)*eigval(4)
 
          write(*,'(A,I5,A,A)') ' Case ', norad(icase), ': ',
      &      objname(icase)
-         write(*,'(A,F10.2,A,F8.4)') '   perigee alt=',
-     &      perigee_alt(icase), ' km  e=', ecc(icase)
+         write(*,'(A,F10.2,A,F8.4,A,F6.2,A)') '   perigee alt=',
+     &      perigee_alt(icase), ' km  e=', ecc(icase),
+     &      '  GMST=', gmst, ' deg'
          write(*,'(A,4E14.6)') '   KS eigenvalues (desc) = ', eigval
          write(*,'(A,I1,A)') '   rank_est = ', rank_est,
      &      ' (4 = presentation''s implicit assumption, 3 = this'//
@@ -159,8 +202,10 @@ c        presentation reported and compared directly to det_c
      &      det_c
          write(*,'(A,E16.8)') '   det(F_ks), raw 4x4        = ',
      &      det_k_raw
-         write(*,'(A,E16.8)') '   reduced det(F_ks), top-3  = ',
+         write(*,'(A,E16.8)') '   reduced det(F_ks), FD grad= ',
      &      reduced_det
+         write(*,'(A,E16.8,A,I1)') '   reduced det(F_ks), '//
+     &      'analytical  = ', reduced_det_an, '  rank=', rank_an
          write(*,'(A,E14.6)') '   raw ratio (KS/Cartesian, as'//
      &      ' presentation compared it)   = ', det_k_raw/det_c
          write(*,'(A,E14.6)') '   corrected ratio (reduced'//
