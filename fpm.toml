@@ -57,5 +57,10 @@ name = "test_fim_ratio_formula"
 source-dir = "test"
 main = "test_fim_ratio_formula.F"
 
+[[test]]
+name = "test_fim_condition_number"
+source-dir = "test"
+main = "test_fim_condition_number.F"
+
 [dependencies]
 ksrop = { git = "https://github.com/hari251086/KSROP", tag = "v2.2.0" }

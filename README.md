@@ -25,7 +25,7 @@ both FIMs independently (using KSROP's own tested KS-transformation code
 as ground truth) and checks empirically whether that's actually what's
 going on.
 
-**Status: Phase 1-4 complete (65/65 tests).** The rank-deficiency
+**Status: Phase 1-5 complete (75/75 tests).** The rank-deficiency
 hypothesis is confirmed in every tested case, including a direct
 reproduction of the presentation's own 4 HEO case-study objects plus its
 GEO case, and the rank-corrected KS/Cartesian ratio behaves exactly as a
@@ -45,9 +45,16 @@ form, `reduced_det_ks/det_cartesian = 64·r³`, and confirmed it holds to
 `~1e-9` relative precision at every point across 2 full orbital
 revolutions of a real case-study object — the ratio isn't just constant
 across station geometry, its exact value is predictable from the
-satellite's instantaneous radius alone. See `ALGORITHM.md` §8 for full
-findings, or issue #6 for the same writeup as the durable GitHub record of
-the finding.
+satellite's instantaneous radius alone. Phase 5 (issue #5) took the next
+step toward "any correctly-normalized comparison": since every nonzero
+`F_ks` eigenvalue scales by the *same* factor relative to `F_cartesian`,
+their ratios are invariant too — `condition_number(F_ks) =
+condition_number(F_cartesian)` exactly, so KS offers no conditioning
+advantage in the linear/FIM sense either. This narrows issue #5 to a
+genuinely different, larger remaining question (nonlinear filter behavior
+over a real tracking timeline), which stays open. See `ALGORITHM.md` §8
+for full findings, or issue #6 for the same writeup as the durable GitHub
+record of the finding.
 
 Independent of every other repo under `GitHub\` except KSROP (reused for
 the KS transformation, same pattern as KS-Pc/OREM).
@@ -80,8 +87,10 @@ KS-FIM/
 │   │                                    (issue #3)
 │   ├── test_fim_geo_edge.F             1-/2-station rank-tracking edge
 │   │                                    case (issue #1)
-│   └── test_fim_ratio_formula.F        exact ratio=64*r^3 closed-form
-│                                        check (issue #2)
+│   ├── test_fim_ratio_formula.F        exact ratio=64*r^3 closed-form
+│   │                                    check (issue #2)
+│   └── test_fim_condition_number.F     condition-number invariance check
+│                                        (issue #5)
 ├── input/
 │   └── const_new.dat   physical constants (from KSROP)
 ├── fpm.toml
@@ -97,7 +106,7 @@ fpm run ksfim_case_study --compiler ifx
 fpm run ksfim_timeseries --compiler ifx
 ```
 
-Expect 65/65 tests passing and, for each of the 4 HEO case-study objects
+Expect 75/75 tests passing and, for each of the 4 HEO case-study objects
 plus the GEO case, a printed comparison of the raw (presentation-style)
 and rank-corrected KS/Cartesian determinant ratios (both finite-difference
 and analytical). `ksfim_timeseries` prints the max relative deviation from
@@ -125,7 +134,7 @@ invoking `fpm`). Not yet verified with `gfortran`.
 
 ## 6. Testing
 
-`fpm test --compiler ifx` — **65/65 tests passing** as of the last run
+`fpm test --compiler ifx` — **75/75 tests passing** as of the last run
 documented here (2026-08-05):
 - `test_fim_cartesian`: 3/3 — Cartesian FIM builder matches a
   hand-computable orthogonal-line-of-sight geometry exactly.
@@ -144,6 +153,9 @@ documented here (2026-08-05):
 - `test_fim_ratio_formula`: 20/20 (issue #2) — the exact closed form
   `reduced_det_ks/det_cartesian = 64·r³` holds to `~1e-8`–`1e-10` relative
   precision across 10 varied orbits/station geometries.
+- `test_fim_condition_number`: 10/10 (issue #5) — `condition_number(F_ks)
+  = condition_number(F_cartesian)` exactly across the same 10 orbits/
+  station geometries — no conditioning advantage in the linear/FIM sense.
 
 ## 7. Inputs & Outputs
 
@@ -159,11 +171,13 @@ prints a summary and writes `output/ksfim_timeseries_35497.csv` (per-step
 ## 8. Known Issues / Limitations
 
 See `ALGORITHM.md` §9 for the full technical detail. Tracked as issues:
-#5 open question on whether any correctly-normalized representation-dependent
-observability effect exists beyond what this repo falsified — the only
-issue still open. #1 (GEO case) resolved in Phase 3; #2 (multi-revolution
-time series) resolved in Phase 4; #3 (GMST-accurate station placement) and
-#4 (analytical-gradient cross-check) resolved in Phase 2.
+#5 remains open, narrowed by Phase 5 to a genuinely different question —
+whether *nonlinear* filter behavior over a real tracking timeline (not a
+single-instant linear FIM, which Phase 5 ruled out down to condition
+number) shows any representation-dependent effect; the only issue still
+open. #1 (GEO case) resolved in Phase 3; #2 (multi-revolution time series)
+resolved in Phase 4; #3 (GMST-accurate station placement) and #4
+(analytical-gradient cross-check) resolved in Phase 2.
 
 ## 9. Version History
 
@@ -216,6 +230,18 @@ time series) resolved in Phase 4; #3 (GMST-accurate station placement) and
   variation the source presentation's own plots show over a revolution is
   fully explained by `r`'s own variation along the orbit. 65/65 tests
   passing. See `ALGORITHM.md` §5, §8.
+- **2026-08-05 (Phase 5)** — Issue #5 narrowed (not closed). Since Phase
+  4's exact formula means every nonzero `F_ks` eigenvalue scales by the
+  same factor relative to `F_cartesian`, their eigenvalue *ratios* are
+  invariant too — `test_fim_condition_number` (10/10) confirms
+  `condition_number(F_ks) = condition_number(F_cartesian)` exactly across
+  10 orbits/station geometries. KS coordinates offer no conditioning
+  advantage in the linear/FIM sense, closing that reading of issue #5.
+  What remains open and out of scope here is whether actual *nonlinear*
+  filter behavior (EKF/UKF linearization-point sensitivity over a real
+  tracking timeline) shows a representation-dependent effect — a
+  different, larger investigation than this repo's FIM-snapshot analysis.
+  75/75 tests passing. See `ALGORITHM.md` §8.
 
 ## 10. Dependencies / References
 

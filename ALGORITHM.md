@@ -168,7 +168,8 @@ checking both rank and eigenvalue-gap magnitude), 1/1
 (`test_fim_reduced_consistency`), 9/9 (`test_fim_analytical_vs_fd`,
 Phase 2, issue #4), 4/4 (`test_timeconv`, Phase 2, issue #3), 4/4
 (`test_fim_geo_edge`, Phase 3, issue #1), 20/20
-(`test_fim_ratio_formula`, Phase 4, issue #2) — **65/65 passing**.
+(`test_fim_ratio_formula`, Phase 4, issue #2), 10/10
+(`test_fim_condition_number`, Phase 5, issue #5) — **75/75 passing**.
 
 **Empirical findings** (this repo's own runs, not carried over from the
 presentation):
@@ -268,6 +269,29 @@ then confirms it holds across time, not just at isolated snapshots**:
   `r`'s own variation along the orbit, not by any independent KS-space
   effect.
 
+**Phase 5 (issue #5, first cut): condition-number invariance.** Issue #5
+asks whether ANY correctly-normalized, rank-matched comparison shows a
+real KS advantage rather than just the trivial `64r³` scale factor. The
+natural next candidate for a nonlinear-filtering context is the FIM's
+*condition number* (ratio of largest to smallest nonzero eigenvalue) — it
+is dimensionless by construction (unlike the raw determinant) and reflects
+how well-conditioned the information ellipsoid is, independent of its
+absolute size. The Phase 4 result already implies the answer analytically:
+since *every* nonzero eigenvalue of `F_ks` equals the *same* scalar
+(`4·|u|²`) times its corresponding `F_cartesian` eigenvalue, their ratios
+to each other are invariant — `condition_number(F_ks) =
+condition_number(F_cartesian)` **exactly**, not approximately.
+`test_fim_condition_number` confirms this across the same 10 orbits/station
+geometries used in `test_fim_ratio_formula`: identical condition numbers
+to `~1e-8`–`1e-11` relative (limited only by eigensolver precision). **KS
+coordinates offer no conditioning advantage in the linear/FIM sense
+either.** This narrows, but does not close, issue #5: the deeper question
+of whether actual nonlinear filter behavior (EKF/UKF linearization-point
+sensitivity across a real estimation timeline, not a single-instant
+linear FIM) shows a representation-dependent effect remains open and
+out of scope here — it would require a filter-simulation study, a
+different kind of investigation than this repo's FIM-snapshot analysis.
+
 **Conclusion**: the original presentation's raw-4×4-determinant comparison
 is not methodologically sound. The 4×4 KS-space FIM is empirically
 confirmed rank-deficient (rank 3, structurally, in every tested case), and
@@ -307,13 +331,18 @@ same-basis comparison.
   representative near-GEO state is used instead (documented in the app's
   header comment) — the 1-/2-station structure and station data are the
   presentation's own.
-- **Doesn't (yet) address whether representation-dependent local
-  linearization is a real effect elsewhere.** This repo falsifies one
-  specific presentation's specific comparison; it does not itself explore
-  whether there are other, correctly-normalized senses in which KS
-  coordinates could offer a genuine local-conditioning advantage for
-  nonlinear filtering (a legitimate, different research question, out of
-  scope for Phase 1).
+- **Doesn't address whether nonlinear filter behavior (not a single-
+  instant linear FIM) shows a representation-dependent effect.** This
+  repo falsifies one specific presentation's specific comparison and (as
+  of Phase 5) also rules out a FIM-condition-number-based reading of "any
+  correctly-normalized comparison" — `condition_number(F_ks) =
+  condition_number(F_cartesian)` exactly, so KS offers no conditioning
+  advantage in the linear/FIM sense either. What remains genuinely open is
+  whether actual nonlinear estimation (EKF/UKF linearization-point
+  sensitivity across a real tracking timeline, not a single-instant FIM
+  snapshot) shows a representation-dependent effect — a legitimately
+  different, larger investigation (a filter-simulation study) out of
+  scope here.
 
 ## 10. Dependencies
 
