@@ -25,7 +25,7 @@ both FIMs independently (using KSROP's own tested KS-transformation code
 as ground truth) and checks empirically whether that's actually what's
 going on.
 
-**Status: Phase 1-5 complete (75/75 tests).** The rank-deficiency
+**Status: Phase 1-6 complete (92/92 tests).** The rank-deficiency
 hypothesis is confirmed in every tested case, including a direct
 reproduction of the presentation's own 4 HEO case-study objects plus its
 GEO case, and the rank-corrected KS/Cartesian ratio behaves exactly as a
@@ -50,9 +50,19 @@ step toward "any correctly-normalized comparison": since every nonzero
 `F_ks` eigenvalue scales by the *same* factor relative to `F_cartesian`,
 their ratios are invariant too — `condition_number(F_ks) =
 condition_number(F_cartesian)` exactly, so KS offers no conditioning
-advantage in the linear/FIM sense either. This narrows issue #5 to a
-genuinely different, larger remaining question (nonlinear filter behavior
-over a real tracking timeline), which stays open. See `ALGORITHM.md` §8
+advantage in the linear/FIM sense either. Phase 6 (issue #5) then built
+the actual EKF-style sequential-filtering study that question calls
+for — a full covariance Kalman filter tracking a real satellite over 144
+steps/2 revolutions, in both representations — and along the way caught a
+real, previously-latent bug (a wrong sign/coefficient in the `w` formula,
+`NaN` in every prior phase but harmless there since nothing used KS
+velocity until now; fixed repo-wide). The EKF result itself is
+**inconclusive**: after fixing the comparison to a properly rank-matched,
+position-marginalized metric, the divergence between representations is
+jagged rather than smooth — the signature of finite-difference-STM
+numerical sensitivity, not a confirmed physical effect. Issue #5 stays
+open; a decisive answer needs an analytical (not finite-differenced) KS
+state transition matrix, unstarted future work. See `ALGORITHM.md` §5, §8
 for full findings, or issue #6 for the same writeup as the durable GitHub
 record of the finding.
 
@@ -64,19 +74,25 @@ the KS transformation, same pattern as KS-Pc/OREM).
 ```
 KS-FIM/
 ├── src/
-│   ├── linalg.F       Jacobi eigenvalue solver + small determinant
-│   │                    helpers for real symmetric 3x3/4x4 matrices
+│   ├── linalg.F       Jacobi eigenvalue solver, small determinant/
+│   │                    matrix-inverse/covariance-sandwich helpers
 │   ├── fim.F           FIM builders (Cartesian analytical gradient, KS
 │   │                    finite-difference AND analytical gradient),
 │   │                    rank-corrected reduced-determinant helpers
-│   └── timeconv.F       GMST (IAU-1982) + geodetic-to-ECI conversion
+│   ├── timeconv.F       GMST (IAU-1982) + geodetic-to-ECI conversion
+│   ├── dynamics.F        exact two-body Kepler flow map + finite-
+│   │                      difference STMs, Cartesian and KS (Phase 6)
+│   └── kalman.F          sequential scalar Kalman covariance update
+│                          (Phase 6)
 ├── app/
 │   ├── ksfim_case_study.F   reproduces the COSPAR presentation's own
 │   │                          4 HEO case-study objects (GMST-accurate)
 │   │                          plus its GEO case (issue #1)
-│   └── ksfim_timeseries.F   multi-revolution closed-form-ratio check,
-│                              144 samples over 2 revs of object 35497
-│                              (issue #2)
+│   ├── ksfim_timeseries.F   multi-revolution closed-form-ratio check,
+│   │                          144 samples over 2 revs of object 35497
+│   │                          (issue #2)
+│   └── ksfim_ekf_study.F    sequential EKF-style study, issue #5
+│                              Phase 6 (inconclusive result)
 ├── test/
 │   ├── test_fim_cartesian.F            hand-computable sanity check
 │   ├── test_fim_ks_rank.F              core rank-deficiency test
@@ -89,8 +105,14 @@ KS-FIM/
 │   │                                    case (issue #1)
 │   ├── test_fim_ratio_formula.F        exact ratio=64*r^3 closed-form
 │   │                                    check (issue #2)
-│   └── test_fim_condition_number.F     condition-number invariance check
-│                                        (issue #5)
+│   ├── test_fim_condition_number.F     condition-number invariance check
+│   │                                    (issue #5)
+│   ├── test_dynamics.F                 exact-flow/STM validation
+│   │                                    (Phase 6)
+│   ├── test_kalman.F                   Kalman update validation
+│   │                                    (Phase 6)
+│   └── test_mat_inverse.F              Gauss-Jordan inverse validation
+│                                        (Phase 6)
 ├── input/
 │   └── const_new.dat   physical constants (from KSROP)
 ├── fpm.toml
@@ -104,14 +126,16 @@ fpm build --compiler ifx
 fpm test --compiler ifx
 fpm run ksfim_case_study --compiler ifx
 fpm run ksfim_timeseries --compiler ifx
+fpm run ksfim_ekf_study --compiler ifx
 ```
 
-Expect 75/75 tests passing and, for each of the 4 HEO case-study objects
+Expect 92/92 tests passing and, for each of the 4 HEO case-study objects
 plus the GEO case, a printed comparison of the raw (presentation-style)
 and rank-corrected KS/Cartesian determinant ratios (both finite-difference
 and analytical). `ksfim_timeseries` prints the max relative deviation from
 the exact closed-form ratio `64·r³` across 2 full revolutions (expect
-`~1e-9`).
+`~1e-9`). `ksfim_ekf_study` prints an explicit INCONCLUSIVE verdict for
+the sequential-filtering question (issue #5) — see §8.
 
 ## 4. Building / Setup
 
@@ -128,13 +152,17 @@ invoking `fpm`). Not yet verified with `gfortran`.
 - `fpm run ksfim_timeseries --compiler ifx` — prints and writes
   `output/ksfim_timeseries_35497.csv`, the 144-sample multi-revolution
   closed-form-ratio check described in Quick Start.
+- `fpm run ksfim_ekf_study --compiler ifx` — prints and writes
+  `output/ksfim_ekf_study_35497.csv`, the Phase 6 sequential EKF-style
+  study (issue #5) — see `ALGORITHM.md` §5 for why the result is reported
+  as inconclusive rather than a confirmed finding.
 - No CLI arguments or config files — all inputs (orbital elements, station
   coordinates) are hardcoded from the source presentation's own published
-  tables, directly in `app/ksfim_case_study.F` and `app/ksfim_timeseries.F`.
+  tables, directly in the `app/*.F` files.
 
 ## 6. Testing
 
-`fpm test --compiler ifx` — **75/75 tests passing** as of the last run
+`fpm test --compiler ifx` — **92/92 tests passing** as of the last run
 documented here (2026-08-05):
 - `test_fim_cartesian`: 3/3 — Cartesian FIM builder matches a
   hand-computable orthogonal-line-of-sight geometry exactly.
@@ -156,6 +184,13 @@ documented here (2026-08-05):
 - `test_fim_condition_number`: 10/10 (issue #5) — `condition_number(F_ks)
   = condition_number(F_cartesian)` exactly across the same 10 orbits/
   station geometries — no conditioning advantage in the linear/FIM sense.
+- `test_dynamics`: 12/12 (Phase 6) — exact-Kepler-flow round-trip,
+  energy conservation, and the `2·L3(u)·(du/dr)=I3` right-inverse
+  identity for `car2ks_jacobian`.
+- `test_kalman`: 3/3 (Phase 6) — scalar Kalman update vs. a
+  hand-computable 1D case; trace/symmetry sanity in 3D.
+- `test_mat_inverse`: 2/2 (Phase 6) — Gauss-Jordan inverse vs.
+  `A·A⁻¹=I` for 3×3/4×4.
 
 ## 7. Inputs & Outputs
 
@@ -167,17 +202,24 @@ re-derived).
 **Outputs**: `ksfim_case_study` is console output only. `ksfim_timeseries`
 prints a summary and writes `output/ksfim_timeseries_35497.csv` (per-step
 `r`, rank, raw/reduced determinants, actual vs. predicted ratio, reldiff).
+`ksfim_ekf_study` prints a summary (with explicit INCONCLUSIVE verdict)
+and writes `output/ksfim_ekf_study_35497.csv` (per-step `r`, rank and
+condition number of each representation's position-marginal covariance).
 
 ## 8. Known Issues / Limitations
 
-See `ALGORITHM.md` §9 for the full technical detail. Tracked as issues:
-#5 remains open, narrowed by Phase 5 to a genuinely different question —
-whether *nonlinear* filter behavior over a real tracking timeline (not a
-single-instant linear FIM, which Phase 5 ruled out down to condition
-number) shows any representation-dependent effect; the only issue still
-open. #1 (GEO case) resolved in Phase 3; #2 (multi-revolution time series)
-resolved in Phase 4; #3 (GMST-accurate station placement) and #4
-(analytical-gradient cross-check) resolved in Phase 2.
+See `ALGORITHM.md` §9 for the full technical detail. Issue #5 remains
+open: Phase 5 ruled out any linear-FIM-based reading (condition number is
+exactly representation-invariant too); Phase 6 built the actual
+sequential EKF-style study the deeper nonlinear question calls for, but
+the result is **inconclusive** — a jagged, numerically-noisy divergence
+pattern rather than a confirmed effect, most likely an artifact of the
+finite-difference STM chain rather than real physics. A decisive answer
+would need an analytical (not finite-differenced) KS state transition
+matrix — unstarted future work. #1 (GEO case) resolved in Phase 3; #2
+(multi-revolution time series) resolved in Phase 4; #3 (GMST-accurate
+station placement) and #4 (analytical-gradient cross-check) resolved in
+Phase 2.
 
 ## 9. Version History
 
@@ -242,6 +284,25 @@ resolved in Phase 4; #3 (GMST-accurate station placement) and #4
   tracking timeline) shows a representation-dependent effect — a
   different, larger investigation than this repo's FIM-snapshot analysis.
   75/75 tests passing. See `ALGORITHM.md` §8.
+- **2026-08-05 (Phase 6)** — Issue #5's deeper question tackled directly:
+  a full sequential EKF-style study (`app/ksfim_ekf_study.F`,
+  `src/dynamics.F` exact-flow-map + finite-difference STMs, `src/kalman.F`
+  scalar covariance updates) tracking object 35497 over 144 steps/2
+  revolutions in both representations. Caught and fixed a real,
+  previously-latent bug along the way: the `w` (KS oscillator frequency)
+  formula used since Phase 1 had the wrong sign/coefficient (`NaN` in
+  every prior phase, harmless there since nothing used KS velocity until
+  now) — fixed repo-wide (11 occurrences). The naive full-state
+  condition-number comparison also wasn't fair (conflates position/
+  velocity units and KS's gauge redundancy); fixed via Schur-complement
+  position marginalization (new `mat_inverse`, `src/linalg.F`). Even
+  after both fixes, the result is **inconclusive**: `rank(P_pos_ks) !=
+  rank(P_pos_cart)` at half the steps and condition numbers diverge, but
+  jaggedly (2-3 orders of magnitude between adjacent steps) rather than
+  smoothly — the signature of finite-difference-STM numerical
+  sensitivity, not a confirmed physical effect. Issue #5 stays open;
+  reported honestly as inconclusive rather than forced into a clean
+  verdict. 92/92 tests passing. See `ALGORITHM.md` §5, §8.
 
 ## 10. Dependencies / References
 

@@ -47,7 +47,7 @@ c     ============================================================
          a_kep(7) = 0.d0
 
          call oe2car(a_kep, x0, xd0, 1.d-12)
-         w = dsqrt(-0.5d0*(amue/a_kep(1)))
+         w = dsqrt(0.25d0*(amue/a_kep(1)))
          call car2ks(x0, xd0, u, us, w)
 
 c        Z1: per-station gradient agreement (single station, direct

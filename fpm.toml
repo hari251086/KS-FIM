@@ -22,6 +22,11 @@ name = "ksfim_timeseries"
 source-dir = "app"
 main = "ksfim_timeseries.F"
 
+[[executable]]
+name = "ksfim_ekf_study"
+source-dir = "app"
+main = "ksfim_ekf_study.F"
+
 [[test]]
 name = "test_fim_cartesian"
 source-dir = "test"
@@ -61,6 +66,21 @@ main = "test_fim_ratio_formula.F"
 name = "test_fim_condition_number"
 source-dir = "test"
 main = "test_fim_condition_number.F"
+
+[[test]]
+name = "test_dynamics"
+source-dir = "test"
+main = "test_dynamics.F"
+
+[[test]]
+name = "test_kalman"
+source-dir = "test"
+main = "test_kalman.F"
+
+[[test]]
+name = "test_mat_inverse"
+source-dir = "test"
+main = "test_mat_inverse.F"
 
 [dependencies]
 ksrop = { git = "https://github.com/hari251086/KSROP", tag = "v2.2.0" }

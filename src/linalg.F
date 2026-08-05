@@ -114,6 +114,119 @@ c     ============================================================
       end
 
 c     ============================================================
+      subroutine mat_sandwich(Phi, P, n, nmax)
+c     In-place covariance-transport sandwich P <- Phi*P*Phi^T, for an
+c     n x n P and Phi (n <= nmax <= 8 -- this repo's largest use is
+c     the 8x8 KS-space EKF study state, src/dynamics.F/ksfim_ekf_
+c     study.F). Local scratch is fixed at 8x8 (not sized off nmax)
+c     since F77 fixed-form doesn't support automatic local arrays.
+c     ============================================================
+      implicit double precision (a-h, o-z)
+      integer n, nmax
+      double precision Phi(nmax,nmax), P(nmax,nmax)
+      double precision tmp(8,8)
+      integer i, j, k
+
+      do i = 1, n
+         do j = 1, n
+            tmp(i,j) = 0.d0
+            do k = 1, n
+               tmp(i,j) = tmp(i,j) + Phi(i,k)*P(k,j)
+            end do
+         end do
+      end do
+
+      do i = 1, n
+         do j = 1, n
+            P(i,j) = 0.d0
+            do k = 1, n
+               P(i,j) = P(i,j) + tmp(i,k)*Phi(j,k)
+            end do
+         end do
+      end do
+
+      return
+      end
+
+c     ============================================================
+      subroutine mat_inverse(a, n, nmax, ainv, ierr)
+c     Gauss-Jordan inverse (with partial pivoting) of a general real
+c     n x n matrix (n <= 8 -- local scratch fixed at 8x16 for the
+c     same F77-fixed-form reason as mat_sandwich's 8x8 scratch).
+c     Needed by the Phase 6 EKF study (ksfim_ekf_study.F) to Schur-
+c     complement a velocity block out of a state covariance,
+c     marginalizing down to a position-only covariance that's
+c     directly comparable to Phases 1-5's rank-matched FIM metrics --
+c     not needed anywhere in the structural rank/ratio findings
+c     themselves.
+c
+c     Output
+c       ainv(n,n) : inverse
+c       ierr      : 0 = ok, 1 = a pivot was numerically singular
+c     ============================================================
+      implicit double precision (a-h, o-z)
+      integer n, nmax, ierr
+      double precision a(nmax,nmax), ainv(nmax,nmax)
+
+      double precision aug(8,16), tmp, factor, piv
+      integer i, j, k, prow
+
+      ierr = 0
+
+      do i = 1, n
+         do j = 1, n
+            aug(i,j) = a(i,j)
+            aug(i,j+n) = 0.d0
+         end do
+         aug(i,i+n) = 1.d0
+      end do
+
+      do k = 1, n
+         prow = k
+         piv = dabs(aug(k,k))
+         do i = k+1, n
+            if (dabs(aug(i,k)) .gt. piv) then
+               piv = dabs(aug(i,k))
+               prow = i
+            end if
+         end do
+         if (piv .lt. 1.d-300) then
+            ierr = 1
+            return
+         end if
+         if (prow .ne. k) then
+            do j = 1, 2*n
+               tmp = aug(k,j)
+               aug(k,j) = aug(prow,j)
+               aug(prow,j) = tmp
+            end do
+         end if
+
+         piv = aug(k,k)
+         do j = 1, 2*n
+            aug(k,j) = aug(k,j)/piv
+         end do
+
+         do i = 1, n
+            if (i .eq. k) goto 10
+            factor = aug(i,k)
+            do j = 1, 2*n
+               aug(i,j) = aug(i,j) - factor*aug(k,j)
+            end do
+ 10         continue
+         end do
+      end do
+
+      do i = 1, n
+         do j = 1, n
+            ainv(i,j) = aug(i,j+n)
+         end do
+      end do
+
+      return
+      end
+
+c     ============================================================
       subroutine eig_sort_desc(eigval, n)
 c     In-place descending sort of a short eigenvalue list (n<=4,
 c     insertion sort is plenty).
