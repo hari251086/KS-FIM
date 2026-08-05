@@ -31,7 +31,8 @@ reproduction of the presentation's own 4 case-study objects), and the
 rank-corrected KS/Cartesian ratio behaves exactly as a coordinate-scaling
 artifact would — constant across very different station geometries for a
 fixed satellite position — not as evidence of genuine new information from
-using KS coordinates. See `ALGORITHM.md` §8 for full findings.
+using KS coordinates. See `ALGORITHM.md` §8 for full findings, or issue #6
+for the same writeup as the durable GitHub record of the finding.
 
 Independent of every other repo under `GitHub\` except KSROP (reused for
 the KS transformation, same pattern as KS-Pc/OREM).
