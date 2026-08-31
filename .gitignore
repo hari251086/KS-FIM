@@ -31,3 +31,6 @@ venv/
 .idea/
 *~
 .DS_Store
+
+# Local-only Claude Code project notes (never committed)
+CLAUDE.md
