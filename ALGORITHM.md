@@ -8,7 +8,7 @@ Matrix (FIM) built from range measurements, is "stronger" when computed in
 Kustaanheimo-Stiefel (KS) regularized coordinates than in Cartesian
 coordinates. The claim originates from a 2021 COSPAR presentation,
 "Regularized Orbit Observability for Resident Space Objects" (PEDAS.1-0023
--21, H. Sellamuthu, `E:\Research\Conferences\c2021 - COSPAR\`), which
+-21, H. Sellamuthu, `<research-library>\Conferences\c2021 - COSPAR\`), which
 reports raw 4×4 KS-space FIM determinants many orders of magnitude larger
 than the corresponding 3×3 Cartesian determinants for the same tracking
 scenario. This repo builds both FIMs independently, using KSROP's own
@@ -451,6 +451,6 @@ same-basis comparison.
 - **Source material**: "Regularized Orbit Observability for Resident
   Space Objects," H. Sellamuthu, 43rd COSPAR Scientific Assembly,
   PEDAS.1-0023-21 (2021) — the presentation this repo evaluates. Located
-  at `E:\Research\Conferences\c2021 - COSPAR\Paper and Presentation\
+  at `<research-library>\Conferences\c2021 - COSPAR\Paper and Presentation\
   DROPBOX-31122020\` (not part of this repo; a local research-archive
   file, referenced for orbital elements/station data only).
