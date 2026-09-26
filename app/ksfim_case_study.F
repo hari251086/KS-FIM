@@ -13,7 +13,7 @@ c     cross-check -- so the "KS observability advantage" claim can be
 c     read honestly instead of via the inflated raw 4x4 number.
 c
 c     Ground stations, orbital elements, AND epochs transcribed
-c     directly from the slide deck (E:\Research\Conferences\c2021 -
+c     directly from the slide deck (<research-library>\Conferences\c2021 -
 c     COSPAR\Paper and Presentation\DROPBOX-31122020\...
 c     FULLPRESENTATIONSLIDES.pdf, "Case Studies" slides) -- not
 c     re-derived, so results are directly comparable to the original.

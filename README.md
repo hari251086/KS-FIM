@@ -311,7 +311,7 @@ Phase 2.
   (`oe2car`), physical constants.
 - **Source material under evaluation**: "Regularized Orbit Observability
   for Resident Space Objects," H. Sellamuthu, 43rd COSPAR Scientific
-  Assembly, PEDAS.1-0023-21 (2021). Local copy at `E:\Research\
+  Assembly, PEDAS.1-0023-21 (2021). Local copy at `<research-library>\
   Conferences\c2021 - COSPAR\Paper and Presentation\DROPBOX-31122020\`
   (not part of this repo).
 - Related, same-author KS-regularization lineage cited by the source
