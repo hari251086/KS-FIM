@@ -22,6 +22,25 @@ c            NOT the same thing as matching the Moore-Penrose
 c            pseudo-inverse L3(u)^T/(2*|u|^2), which assumes a
 c            particular (minimum-norm) branch that car2ks's actual
 c            algebraic construction has no reason to follow.
+c     Issue #5 (analytical KS STM, in progress): stm_ks_analytical in
+c     dynamics.F implements the closed-form harmonic-oscillator
+c     solution (user's own thesis eq 2.57/2.58/2.63) and is verified
+c     correct in the sense that matters physically -- ks2car of its
+c     predicted (u1,us1) reproduces the EXACT two-body (r1,v1) to
+c     Kepler-solver precision (checked independently in Python, not a
+c     Fortran test here yet). It does NOT, however, numerically match
+c     stm_ks (FD) component-for-component: car2ks's inverse transform
+c     fixes one of the 4 u-components to exactly zero based on the
+c     sign of x at that instant (Table 2.2 of the thesis; section
+c     2.3.4 calls this out as a known shortcoming), a discontinuous
+c     gauge choice re-selected fresh every time car2ks is called.
+c     stm_ks's FD differences straight through that re-selection at
+c     t1, so its (u1,us1) is a different point on the same KS fiber
+c     than the smoothly-evolved harmonic-oscillator state -- not a bug
+c     in either routine, a genuine representation mismatch. Closing
+c     this needs composing stm_ks_analytical with an analytical
+c     ks2car Jacobian and the existing (FD) car2ks_jacobian via the
+c     chain rule, not attempted yet -- see issue #5.
 c     ============================================================
       program test_dynamics
       implicit double precision (a-h, o-z)

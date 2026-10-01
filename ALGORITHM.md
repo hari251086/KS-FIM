@@ -397,6 +397,64 @@ question), but this specific presentation's evidence for a genuine "KS
 gives better observability" effect does not survive a rank-correct,
 same-basis comparison.
 
+## Phase 7 (issue #5, in progress): analytical KS STM, and a new finding
+
+Started the "analytically-derived KS state-transition matrix" Phase 6 called
+for. The user's own thesis (Chapter 2, section 2.3.2, eq 2.57/2.58/2.63)
+already gives it in closed form: unperturbed KS motion is an exact 4D
+harmonic oscillator in the generalized eccentric anomaly `E` (which coincides
+with the classical eccentric anomaly here, since this is unperturbed motion
+-- thesis section 2.3.3, condition (i)),
+
+```
+u(E)  =  u0*cos(dE/2) + 2*us0*sin(dE/2)
+us(E) = -0.5*u0*sin(dE/2) +  us0*cos(dE/2)
+```
+
+with `w`, and the thesis's `alpha`/`beta` vectors, all constant for
+unperturbed motion. `dE` comes from `car2oe`'s own eccentric anomaly output
+(`a_kep(7)`) and KSROP's existing `akesolve` Kepler-equation solver at the
+time-advanced mean anomaly -- no new numerics anywhere in that chain.
+Implemented as `kepler_delta_E`/`stm_ks_analytical` (`src/dynamics.F`).
+**Verified correct independently in Python** (not yet a Fortran test): for
+20 random orbits, `ks2car` of this closed form's predicted `(u1,us1)`
+reproduces the *exact* two-body `(r1,v1)` to `~1e-8` relative error (Kepler
+solver tolerance, not a structural error).
+
+**It does not, however, numerically match `stm_ks` (the existing FD STM)
+component-for-component** -- checked directly (`test_dynamics.F`'s Z_d
+scratch check, not kept as a committed test since it isn't a pass/fail
+check yet, see below). The discrepancy is large (`~1.0`, not a rounding-
+level mismatch) and traces to a real, structural cause: `car2ks`'s inverse
+transform (Table 2.2) fixes ONE of the 4 `u`-components to exactly zero
+based on the sign of `x` at that instant -- a discontinuous gauge choice,
+flagged as a known shortcoming by the thesis itself (section 2.3.4, "An
+alternate inverse KS-transformation"). `stm_ks` finite-differences straight
+through a FRESH `car2ks` call at `t1`, so its `(u1,us1)` is whichever gauge
+representative that branch picks at the propagated instant -- not the same
+point on the KS fiber as the smoothly-evolved harmonic-oscillator state my
+closed form tracks. Both map to the identical physical `(r,v)` (confirmed),
+they just disagree as 4-vectors in `u`-space.
+
+**This may also explain Phase 6's "jagged, not smooth" condition-number
+spikes** (section 8 above), previously attributed to finite-difference/
+Schur-inverse noise compounding over 144 sequential steps: a branch
+re-selection at a handful of those steps would produce exactly that
+signature (a discontinuous jump, not a smoothly growing numerical error) --
+not confirmed yet, but a concrete, testable alternative explanation this
+phase surfaced.
+
+**Not yet done**: making the analytical STM match `stm_ks`'s own gauge
+convention needs one more composition step -- `Phi_full = J_car2ks(r1,v1) @
+J_ks2car(u1_smooth,us1_smooth) @ Phi_harmonic(dE)`, where `J_ks2car` (the
+forward map's Jacobian) is itself closed-form-derivable (no branching, a
+smooth quadratic map) but `J_car2ks` (the existing, already-validated FD
+`car2ks_jacobian`) is inherently branch-dependent and would stay
+finite-difference -- still a large accuracy improvement over
+finite-differencing the ENTIRE 8x8 map fresh at every one of 144 steps,
+since only this one piece would remain FD. Left as the concrete next step
+for issue #5, not attempted this phase.
+
 ## 9. Known Limitations
 
 - ~~No GMST/epoch-accurate station placement.~~ **Resolved, Phase 2

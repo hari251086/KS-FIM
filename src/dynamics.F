@@ -157,6 +157,73 @@ c     ============================================================
       end
 
 c     ============================================================
+      subroutine kepler_delta_E(r0, v0, dt, dE)
+c     Issue #5: the generalized eccentric anomaly increment (thesis eq
+c     2.52/2.57) corresponding to physical-time step dt, for the exact
+c     unperturbed Kepler flow this repo uses -- which coincides with
+c     the CLASSICAL eccentric anomaly here (thesis section 2.3.3,
+c     condition (i): U=0 and P=0). car2oe already returns E0 directly
+c     (a_kep(7)); E1 comes from KSROP's own akesolve Kepler-equation
+c     solver at the advanced mean anomaly -- no new numerics, reuses
+c     exactly what oe2car/kepler_flow_cartesian already trust.
+c     ============================================================
+      implicit double precision (a-h, o-z)
+      common /xy/ pi, d2r, r2d, amue, AU, R_Earth
+      double precision r0(3), v0(3), dt, dE
+      double precision a_kep(7), n_mean, am1, E0, E1
+
+      call car2oe(r0, v0, a_kep)
+      n_mean = dsqrt(amue/a_kep(1)**3)
+      E0 = a_kep(7)*d2r
+      am1 = a_kep(6)*d2r + n_mean*dt
+      E1 = akesolve(a_kep(2), am1, 1.d-12)
+
+      dE = E1 - E0
+
+      return
+      end
+
+c     ============================================================
+      subroutine stm_ks_analytical(u0, us0, w, dt, Phi)
+c     Issue #5: EXACT (not finite-difference) 8x8 STM d(u1,us1)/d(u0,us0)
+c     for the unperturbed KS harmonic oscillator -- the closed-form
+c     solution in the generalized eccentric anomaly E (user's own
+c     thesis, section 2.3.2, eq 2.57/2.58/2.63), with alpha*=beta*=0
+c     since w, alpha, beta are all constant for unperturbed motion:
+c       u(E)  =  u0*cos(dE/2) + 2*us0*sin(dE/2)
+c       us(E) = -0.5*u0*sin(dE/2) +  us0*cos(dE/2)
+c     dE comes from kepler_delta_E (Cartesian orbital elements + the
+c     already-validated Kepler-equation solver), not from differencing
+c     the flow map -- unlike stm_ks. Verified to agree with stm_ks to
+c     central-finite-difference precision (test_dynamics.F, check Z_d).
+c     ============================================================
+      implicit double precision (a-h, o-z)
+      double precision u0(4), us0(4), w, dt, Phi(8,8)
+      double precision r0(3), v0(3), dE, cE, sE
+      integer i, j
+
+      call ks2car(u0, us0, r0, v0, w)
+      call kepler_delta_E(r0, v0, dt, dE)
+
+      cE = dcos(0.5d0*dE)
+      sE = dsin(0.5d0*dE)
+
+      do i = 1, 8
+         do j = 1, 8
+            Phi(i,j) = 0.d0
+         end do
+      end do
+      do i = 1, 4
+         Phi(i,i)     = cE
+         Phi(i,i+4)   = 2.d0*sE
+         Phi(i+4,i)   = -0.5d0*sE
+         Phi(i+4,i+4) = cE
+      end do
+
+      return
+      end
+
+c     ============================================================
       subroutine car2ks_jacobian(r0, v0, w, J)
 c     8x6 finite-difference Jacobian d(u,us)/d(r,v) at fixed w --
 c     used only to map an initial Cartesian covariance into KS space
