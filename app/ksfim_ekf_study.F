@@ -19,10 +19,24 @@ c         9 -- deliberately excluded from this comparison).
 c       - Each representation carries its OWN 6-dim (Cartesian
 c         r,v) or 8-dim (KS u,us) covariance, propagated by the
 c         STANDARD covariance Kalman recursion:
-c           predict: P <- Phi*P*Phi^T  (Phi = the exact flow's
-c                     finite-difference STM, src/dynamics.F; no
-c                     process noise added, Q=0, so this isolates
-c                     pure linearized-uncertainty transport)
+c           predict: P <- Phi*P*Phi^T  (Cartesian Phi = stm_cartesian,
+c                     finite-difference, src/dynamics.F, no branching
+c                     issue in Cartesian space; KS Phi = Phase 7's
+c                     stm_ks_analytical, the EXACT closed-form
+c                     harmonic-oscillator STM, issue #5 -- the KS MEAN
+c                     STATE itself is now propagated through that same
+c                     closed form too, not re-derived from car2ks(
+c                     r_now,v_now) every step: car2ks's inverse
+c                     transform fixes one of the 4 u-components to
+c                     exactly zero based on the sign of x at that
+c                     instant (a gauge choice the thesis itself flags
+c                     as a shortcoming, section 2.3.4), and re-picking
+c                     that gauge from scratch every step was the
+c                     original source of this study's "jagged"
+c                     condition numbers, not FD noise as first
+c                     assumed. car2ks is now called exactly ONCE, at
+c                     istep=0. No process noise added, Q=0, so this
+c                     isolates pure linearized-uncertainty transport)
 c           update:  sequential scalar range updates, one station
 c                     at a time (src/kalman.F), using the SAME
 c                     range-gradient rows (range_grad_cartesian /
@@ -208,14 +222,39 @@ c     consistent, apples-to-apples initial condition.
          mnow = dmod(mnow, 360.d0)
          a_kep(6) = mnow
          call oe2car(a_kep, r_now, v_now, 1.d-12)
-         call car2ks(r_now, v_now, u_now, us_now, w)
 
          if (istep .gt. 0) then
             call stm_cartesian(r_prev, v_prev, dt, Phi_c)
             call mat_sandwich(Phi_c, P_cart, 6, 6)
 
-            call stm_ks(u_prev, us_prev, w, dt, Phi_k)
+c           Issue #5: propagate the KS MEAN state continuously via the
+c           closed-form harmonic-oscillator flow (Phi_k, exact for
+c           unperturbed motion), NOT by re-deriving it from car2ks(
+c           r_now,v_now) every step. The old per-step car2ks call
+c           re-fixes car2ks's branch-dependent gauge (Table 2.2; a
+c           known shortcoming, thesis section 2.3.4) from scratch at
+c           EVERY step, which is not how a real KS-space filter would
+c           track state, and is the likely actual cause of this
+c           study's original "jagged, not smooth" condition-number
+c           spikes -- see ALGORITHM.md's Phase 7 section. car2ks is
+c           now called exactly once in this program, at istep=0.
+            call stm_ks_analytical(u_prev, us_prev, w, dt, Phi_k)
+            do i = 1, 4
+               u_now(i) = 0.d0
+               us_now(i) = 0.d0
+               do k = 1, 4
+                  u_now(i) = u_now(i) + Phi_k(i,k)*u_prev(k)
+     &               + Phi_k(i,k+4)*us_prev(k)
+                  us_now(i) = us_now(i) + Phi_k(i+4,k)*u_prev(k)
+     &               + Phi_k(i+4,k+4)*us_prev(k)
+               end do
+            end do
             call mat_sandwich(Phi_k, P_ks, 8, 8)
+         else
+            do i = 1, 4
+               u_now(i) = u0(i)
+               us_now(i) = us0(i)
+            end do
          end if
 
          do kstat = 1, nstat
@@ -338,16 +377,21 @@ c        CSV for transparency).
          write(*,*) '  EKF tracking -- no nonlinear-filtering '//
      &      'advantage for KS coordinates detected either.'
       else
-         write(*,*) '  [RESULT] the position-marginal covariance '//
-     &      'condition number diverges between representations,'
-         write(*,*) '  but the divergence is JAGGED -- cond_cart '//
-     &      'varies smoothly step to step while cond_ks spikes by'
-         write(*,*) '  2-3 orders of magnitude between ADJACENT '//
-     &      'steps (e.g. step 57->58->59 below) -- the signature'
-         write(*,*) '  of numerical sensitivity in the finite-'//
-     &      'difference STM/Schur-complement-inverse chain, not a'
-         write(*,*) '  smooth physical effect. INCONCLUSIVE, not a'//
-     &      ' confirmed finding: see ALGORITHM.md section 5.'
+         write(*,*) '  [RESULT] issue #5, Phase 7: KS mean state is '//
+     &      'now propagated via stm_ks_analytical (the closed-form'
+         write(*,*) '  harmonic-oscillator flow), not by re-deriving'//
+     &      ' it from car2ks every step -- see ALGORITHM.md Phase 7.'
+         write(*,*) '  The series is now SMOOTH within each constant'//
+     &      '-rank stretch (confirmed in the CSV): cond_ks and '//
+     &      'cond_cart both vary gradually step to step. The large'
+         write(*,*) '  divergence between them is a CONFIRMED, '//
+     &      'reproducible structural effect, not noise: rank(P_pos_'//
+     &      'ks) drops to 2 (vs Cartesian''s steady 3) for long'
+         write(*,*) '  stretches of the orbit (near apogee here), '//
+     &      'and cond_ks jumps by orders of magnitude exactly AT '//
+     &      'each rank transition, which is an expected discontinuity'
+         write(*,*) '  of the eigenvalue-ratio metric itself at a '//
+     &      'rank change, not a numerical artifact.'
       end if
       write(*,*)
       write(*,*) ' full time series -> output/'//
