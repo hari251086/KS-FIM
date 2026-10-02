@@ -397,7 +397,7 @@ question), but this specific presentation's evidence for a genuine "KS
 gives better observability" effect does not survive a rank-correct,
 same-basis comparison.
 
-## Phase 7 (issue #5, in progress): analytical KS STM, and a new finding
+## Phase 7 (issue #5): analytical KS STM finds a real, confirmed effect
 
 Started the "analytically-derived KS state-transition matrix" Phase 6 called
 for. The user's own thesis (Chapter 2, section 2.3.2, eq 2.57/2.58/2.63)
@@ -444,16 +444,41 @@ signature (a discontinuous jump, not a smoothly growing numerical error) --
 not confirmed yet, but a concrete, testable alternative explanation this
 phase surfaced.
 
-**Not yet done**: making the analytical STM match `stm_ks`'s own gauge
-convention needs one more composition step -- `Phi_full = J_car2ks(r1,v1) @
-J_ks2car(u1_smooth,us1_smooth) @ Phi_harmonic(dE)`, where `J_ks2car` (the
-forward map's Jacobian) is itself closed-form-derivable (no branching, a
-smooth quadratic map) but `J_car2ks` (the existing, already-validated FD
-`car2ks_jacobian`) is inherently branch-dependent and would stay
-finite-difference -- still a large accuracy improvement over
-finite-differencing the ENTIRE 8x8 map fresh at every one of 144 steps,
-since only this one piece would remain FD. Left as the concrete next step
-for issue #5, not attempted this phase.
+**Composing `J_car2ks @ J_ks2car @ Phi_harmonic` to match `stm_ks`'s own
+gauge convention was tried and abandoned** -- it chases the wrong target.
+`stm_ks` differentiates the composite `car2ks . kepler_flow_cartesian .
+ks2car`, which means it re-derives the KS state via `car2ks`'s
+branch-fixing gauge at **every single step**, not occasionally. That isn't
+how a KS-space filter should work in the first place: a real one propagates
+`(u,us)` continuously through their own dynamics, touching `car2ks`/
+`ks2car` only once, at the initial-condition boundary. So the fix isn't a
+better Jacobian chain -- it's rerunning the EKF study itself that way.
+
+**Done: `ksfim_ekf_study.F` rewritten to propagate the KS MEAN STATE (not
+just its covariance) via `stm_ks_analytical`'s closed form every step,
+calling `car2ks` exactly ONCE (at `istep=0`)** -- previously it called
+`car2ks(r_now,v_now)` fresh at every one of the 144 steps, re-fixing the
+branch-dependent gauge from scratch each time.
+
+**Result: the "jagged, not smooth" symptom is gone, and what's left is a
+clean, reproducible, CONFIRMED effect, not FD noise.** `cond_ks` and
+`cond_cart` now both vary gradually step to step within any stretch of
+constant rank (checked directly in `output/ksfim_ekf_study_35497.csv`) --
+the only large, discontinuous jumps happen exactly AT a rank transition
+(an expected property of an eigenvalue-ratio metric when the denominator
+eigenvalue changes identity, not numerical sensitivity). Over this orbit
+(Ariane 5 ESC-A, `e=0.6049`), `rank(P_pos_ks)` drops to 2 (vs Cartesian's
+steady 3) for long stretches near apogee (`r` roughly 7,000-27,000 km),
+recovering to 3 only near perigee -- **a real, systematic, representation-
+dependent loss of a dimension in the KS Schur-complement covariance that
+Cartesian's doesn't show, confirmed rather than inconclusive.** This is
+the first genuinely new finding of this repo (every earlier phase found
+either no effect, or an effect that didn't survive methodological
+scrutiny). Not yet investigated: WHY rank drops specifically near apogee
+in `u`-space (a geometric/structural question about the Schur complement
+of the KS covariance along this specific orbit, not attempted here) and
+whether it holds for other eccentricities/orbit geometries -- both left as
+open follow-on work, not this phase's scope.
 
 ## 9. Known Limitations
 
