@@ -2,7 +2,7 @@
 
 Rank-correct Fisher Information Matrix observability comparison, Cartesian vs. Kustaanheimo-Stiefel coordinates
 
-Copyright (c) 2018–2026 Harishkumar Sellamuthu, released under the MIT License
+Copyright (c) 2014–2026 Harishkumar Sellamuthu, released under the MIT License
 
 ## 1. Overview
 
